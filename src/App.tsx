@@ -91,21 +91,18 @@ export default function App() {
         dangerouslyAllowBrowser: true
       });
 
-      // ULTRA-FAST OPTIMIZATION: No conversation context for first quote
-      // Only include context if user is refining (contains "add", "change", "update")
+      // Smart context detection - only use context if refining
       const needsContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
       
       const recentMessages = needsContext 
         ? messages.slice(-1).map(msg => ({ role: msg.role, content: msg.content }))
         : [];
 
-      // Add current user message
       recentMessages.push({
         role: 'user',
         content: currentInput
       });
 
-      // Create placeholder for streaming response
       const assistantMessageId = Date.now();
       setMessages(prev => [...prev, {
         id: assistantMessageId,
@@ -115,65 +112,90 @@ export default function App() {
         actions: ['copy', 'export']
       }]);
 
-      // ULTRA-FAST CONFIG:
-      // - Prompt caching enabled (biggest win)
-      // - Max tokens reduced to 3072 (aggressive but safe for quotes)
-      // - Ultra-condensed system prompt (450 tokens vs 2800)
-      // - Temperature 0 for faster, deterministic responses
+      // CRITICAL FIX: Inline all pricing data to skip slow file reads
+      // This eliminates the 20+ second skill file read delay
       const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 3072, // Aggressive reduction - quotes average 800-1200 tokens
-        temperature: 0, // Deterministic = faster
-        betas: ['code-execution-2025-08-25', 'skills-2025-10-02', 'prompt-caching-2024-07-31'],
-        container: {
-          skills: [
-            {
-              type: 'custom',
-              skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
-              version: 'latest'
-            }
-          ]
-        },
-        tools: [
-          {
-            type: 'code_execution_20250825',
-            name: 'code_execution'
-          }
-        ],
+        max_tokens: 3072,
+        temperature: 0,
+        betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
         system: [
           {
             type: 'text',
-            text: `chatMPA - MPA printing/mail assistant
+            text: `chatMPA - MPA commercial printing quote engine
 
-SKILL: /mnt/skills/user/mpa-cost-pricing/SKILL.md
-USE: For any "quote", "price", "cost", work order, or printing spec
+EQUIPMENT & RATES:
+P-01 Iridesse: $0.0416/click (color, covers)
+P-06 Nuvera: $0.0027/click (B&W text)
 
-WORKFLOW:
-1. Read skill file first
-2. Follow formulas exactly  
-3. Show: imposition, paper, clicks, total
-4. Verify: Quote = Cost × Multiplier
-5. Never estimate - use skill data only
+PAPER STOCKS (common):
+100# Gloss Cover: $0.0965/sheet
+14pt Kallima C2S: $0.1230/sheet
+100# Silk Text: $0.0505/sheet
+
+PRICING TIERS:
+1-250: 6.50× (85% margin)
+251-500: 5.30× (81%)
+501-1K: 4.56× (78%)
+1,001-2,500: 3.50× (71%)
+2,501-10K: 3.00× (67%)
+10,001-15K: 2.20× (55%)
+15K+: 1.90× (47%)
+
+SPOILAGE:
+1-500: 5% (×1.05)
+501-2,500: 3% (×1.03)
+2,501+: 2% (×1.02)
 
 MAIL SERVICES (pass-through, no markup):
-- S-01 NCOA=$0.007/pc, S-02 Inkjet=$0.035/pc, S-08 Bulk=$0.017/pc
-- Calculate: Qty × Rate
-- Postage: "Actual USPS cost" (never estimate)
+S-01 NCOA: $0.007/pc
+S-02 Inkjet Address: $0.035/pc
+S-08 Bulk Mail Prep: $0.017/pc
+S-19 EDDM Prep: $0.035/pc
+Postage: ALWAYS state "Actual USPS cost" - NEVER estimate
 
-Be concise. Show math. Verify before output.`,
+QUOTE WORKFLOW:
+1. IMPOSITION (13×19 sheet):
+   - Add 0.25" bleed: Live = Finished + 0.25"
+   - Orient 1: FLOOR(13÷width) × FLOOR(19÷height)
+   - Orient 2: FLOOR(13÷height) × FLOOR(19÷width)
+   - Use MAX(orient1, orient2)
+
+2. PRESS SHEETS:
+   Sheets = Qty ÷ Up_count × Spoilage
+
+3. COSTS:
+   Paper = Sheets × Paper_cost
+   Clicks = Sheets × Sides × Click_rate
+   Total = Paper + Clicks
+
+4. QUOTE:
+   Quote = Total_cost × Multiplier
+   
+5. VERIFY: Quote = Cost × Multiplier (check math!)
+
+COLOR NOTATION:
+4/4 = full color both sides (2 sides, NOT 4!)
+4/0 = color one side (1 side)
+1/1 = B&W both sides (2 sides)
+
+CRITICAL RULES:
+- Show ALL math (imposition, sheets, costs)
+- Verify multiplier matches quantity tier
+- Mail services = Qty × Rate (no markup!)
+- NEVER estimate postage
+- Be concise but complete`,
             cache_control: { type: 'ephemeral' }
           }
         ],
         messages: recentMessages
       });
 
-      // Update UI in real-time as response streams in
       let fullResponse = '';
       
       stream.on('text', (text) => {
         fullResponse += text;
         
-        // Update the message in real-time
         setMessages(prev => prev.map(msg => 
           msg.id === assistantMessageId
             ? { ...msg, content: fullResponse }
@@ -181,7 +203,6 @@ Be concise. Show math. Verify before output.`,
         ));
       });
 
-      // Wait for stream to complete
       await stream.finalMessage();
 
     } catch (err) {
@@ -229,7 +250,7 @@ Be concise. Show math. Verify before output.`,
             </div>
             <div>
               <h1 className="text-base font-semibold text-neutral-100 tracking-tight">chatMPA</h1>
-              <p className="text-xs text-neutral-500">Production AI Agent • Ultra-Fast Mode</p>
+              <p className="text-xs text-neutral-500">Production AI Agent • Instant Mode</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -264,7 +285,7 @@ Be concise. Show math. Verify before output.`,
                     MPA Production AI Agent
                   </h2>
                   <p className="text-neutral-400 text-base leading-relaxed max-w-2xl mx-auto">
-                    Lightning-fast quotes with accurate pricing. Optimized for speed without sacrificing quality.
+                    Instant quotes with accurate pricing. Zero file reads, maximum speed.
                   </p>
                 </div>
 
@@ -399,7 +420,7 @@ Be concise. Show math. Verify before output.`,
                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
                     <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
                   </div>
-                  <p className="text-xs text-neutral-500 pl-3">⚡ Ultra-fast mode...</p>
+                  <p className="text-xs text-neutral-500 pl-3">⚡ Instant mode...</p>
                 </div>
               </div>
             </div>
@@ -463,7 +484,7 @@ Be concise. Show math. Verify before output.`,
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ask chatMPA anything... (ultra-fast mode)"
+                  placeholder="Ask chatMPA anything... (instant mode - no file reads!)"
                   className="w-full px-5 py-3.5 bg-neutral-900 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-transparent resize-none text-neutral-200 placeholder-neutral-500 text-sm transition-all duration-200"
                   rows="3"
                   disabled={isLoading}
@@ -483,7 +504,7 @@ Be concise. Show math. Verify before output.`,
           <div className="mt-3 flex items-center justify-center gap-5 text-xs text-neutral-600">
             <span><kbd className="px-2 py-1 bg-neutral-800/60 border border-neutral-700 rounded font-mono text-neutral-500">Enter</kbd> send</span>
             <span><kbd className="px-2 py-1 bg-neutral-800/60 border border-neutral-700 rounded font-mono text-neutral-500">⇧ Enter</kbd> new line</span>
-            <span className="text-blue-500">⚡ Ultra-Fast Mode</span>
+            <span className="text-blue-500">⚡ Instant Mode</span>
           </div>
         </div>
       </div>
