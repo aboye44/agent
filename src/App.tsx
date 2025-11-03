@@ -102,18 +102,31 @@ export default function App() {
         content: input
       });
 
-      // Call Claude API with extended thinking and skill
-      const response = await client.messages.create({
-        model: 'claude-opus-4-20250514',
+      // Call Claude API with Skills and code execution
+      const response = await client.beta.messages.create({
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4096,
+        betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
         thinking: {
           type: 'enabled',
           budget_tokens: 10000
         },
+        container: {
+          skills: [
+            {
+              type: 'custom',
+              skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
+              version: 'latest'
+            }
+          ]
+        },
         messages: conversationHistory,
-        metadata: {
-          skill_id: 'skill_017itBMGuP8s5xPH2K683nDy'
-        }
+        tools: [
+          {
+            type: 'code_execution_20250825',
+            name: 'code_execution'
+          }
+        ]
       });
 
       // Extract the text content from the response
