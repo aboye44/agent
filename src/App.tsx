@@ -334,30 +334,116 @@ DESIGN QUOTE EXAMPLE:
 
 === MAILING SERVICES (PASS-THROUGH - NO MARKUP) ===
 
-CRITICAL MAILING RULES:
-1. When user says "add mailing" or "mail it" → AUTOMATICALLY add standard services
-2. NEVER ask questions about mailing - just add services
-3. NEVER calculate or estimate postage amounts
-4. Always state: "Postage billed at actual USPS cost"
+COMPLETE SERVICE MENU:
+- S-01 NCOA/CASS: $0.007/pc ($10 minimum)
+- S-02 Inkjet Addressing (Letter/Postcard): $0.035/pc
+- S-03 Inkjet Addressing (Flat): $0.04/pc
+- S-04 Machine Inserting (1st piece): $0.02/pc
+- S-05 Machine Inserting (Each additional): $0.01/pc
+- S-06 Tabbing (Double Tab): $0.035/pc
+- S-07 Tabbing (Triple Tab): $0.05/pc
+- S-08 Bulk Mail Prep & Traying: $0.017/pc
+- S-09 Machine Folding: $0.015/pc ($15 minimum)
+- S-10 Collating: $0.02/pc ($15 minimum)
+- S-11 Machine Stamping: $0.02/pc
+- S-12 Barcode (OCR Processing): $0.035/pc
+- S-13 Hand Inserting (1st piece): $0.04/pc
+- S-14 Hand Inserting (Each additional): $0.02/pc
+- S-15 Hand Sealing: $0.03/pc
+- S-16 Hand Stamping: $0.03/pc
+- S-17 Marriage Matching (per match): $0.03/pc
+- S-18 Hand Folding: $0.06/pc ($20 minimum)
 
-STANDARD MAILING SERVICES (always include these three):
-- S-01 NCOA/CASS: $0.007/pc (address validation + updates)
-- S-02 Inkjet Addressing: $0.035/pc (print addresses on pieces)
-- S-08 Bulk Mail Prep: $0.017/pc (sortation + USPS drop-off)
-- TOTAL: $0.059/pc
+INTELLIGENT MAILING BY PRODUCT TYPE:
 
-MAILING QUOTE EXAMPLE (500 postcards):
+When user says "add mailing" or "mail it", apply services based on product:
 
-PRINTING:
-* Quote: $125.72 ($0.2514/pc)
+**POSTCARDS:**
+- S-01: $0.007/pc
+- S-02: $0.035/pc (Letter/Postcard addressing)
+- S-08: $0.017/pc
+TOTAL: $0.059/pc
 
+**FLYERS/BROCHURES (Self-mailers):**
+- S-01: $0.007/pc
+- S-03: $0.04/pc (Flat addressing)
+- S-06: $0.035/pc (Double tab - standard)
+- S-08: $0.017/pc
+TOTAL: $0.099/pc
+NOTE: If trifold, may use S-07 (Triple tab $0.05) = $0.114/pc total
+
+**LETTERS (In #10 envelopes):**
+Machine insert (standard):
+- S-01: $0.007/pc
+- S-02: $0.035/pc
+- S-04: $0.02/pc (1st piece)
+- S-05: $0.01/pc per additional insert
+- S-08: $0.017/pc
+TOTAL: $0.079/pc (1 sheet) or $0.089/pc (2 sheets)
+
+Hand insert (complex/multiple pieces):
+- S-01: $0.007/pc
+- S-02: $0.035/pc
+- S-13: $0.04/pc (1st piece)
+- S-14: $0.02/pc per additional
+- S-15: $0.03/pc (sealing)
+- S-08: $0.017/pc
+TOTAL: $0.129/pc (1 sheet) or $0.169/pc (2 sheets)
+
+**BOOKLETS (depends on size):**
+Small booklets (fit #10 envelope):
+- Use letter inserting logic above
+
+Large booklets (9×12+ flats):
+- S-01: $0.007/pc
+- S-03: $0.04/pc (Flat addressing)
+- S-06 or S-07: $0.035-0.05/pc (tabbing)
+- S-08: $0.017/pc
+TOTAL: $0.099-0.114/pc
+
+CRITICAL RULES:
+1. When user says "add mailing", use INTELLIGENT defaults based on product type
+2. For postcards: Auto-add (no questions needed)
+3. For flyers/brochures: Auto-add with double tab (mention triple tab option)
+4. For letters: ASK if machine or hand insert, how many pieces
+5. For booklets: ASK size to determine envelope vs flat
+6. NEVER calculate or estimate postage amounts
+7. Always state: "Postage billed at actual USPS cost"
+
+MAILING QUOTE EXAMPLES:
+
+**Example 1: Postcards (500 pcs)**
+PRINTING: $125.72 ($0.2514/pc)
 MAIL SERVICES:
 * NCOA/CASS (S-01): $3.50 ($0.007/pc)
 * Inkjet Addressing (S-02): $17.50 ($0.035/pc)  
 * Bulk Mail Prep (S-08): $8.50 ($0.017/pc)
 * Mail Services Total: $29.50 ($0.059/pc)
-
 TOTAL: $155.22 ($0.3104/pc)
+Postage: Billed at actual USPS cost
+
+**Example 2: Trifold Brochures (5000 pcs)**
+PRINTING: $1,147.81 ($0.2296/pc)
+MAIL SERVICES:
+* NCOA/CASS (S-01): $35.00 ($0.007/pc)
+* Inkjet Addressing Flat (S-03): $200.00 ($0.04/pc)
+* Double Tab (S-06): $175.00 ($0.035/pc)
+* Bulk Mail Prep (S-08): $85.00 ($0.017/pc)
+* Mail Services Total: $495.00 ($0.099/pc)
+TOTAL: $1,642.81 ($0.3286/pc)
+Postage: Billed at actual USPS cost
+NOTE: Triple tab available for $0.015/pc more if needed for extra security
+
+**Example 3: Letter with 2 inserts (1000 pcs) - Machine Insert**
+PRINTING: $xxx.xx
+MAIL SERVICES:
+* NCOA/CASS (S-01): $7.00 ($0.007/pc)
+* Inkjet Addressing (S-02): $35.00 ($0.035/pc)
+* Machine Insert 1st (S-04): $20.00 ($0.02/pc)
+* Machine Insert 2nd (S-05): $10.00 ($0.01/pc)
+* Bulk Mail Prep (S-08): $17.00 ($0.017/pc)
+* Mail Services Total: $89.00 ($0.089/pc)
+TOTAL: $xxx.xx
 Postage: Billed at actual USPS cost
 
 === CRITICAL RULES ===
