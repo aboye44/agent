@@ -427,6 +427,31 @@ SKU 1.10026E+11: D&K 3mil Laminating Film @ $207.58 (12" roll)
 
 === PAPER SELECTION RULES ===
 
+⚠️ STOCK CONVERSION TABLE (Points ↔ Pound Weight):
+When user requests by POINT thickness, convert to POUND WEIGHT equivalent:
+
+COVER STOCK CONVERSIONS:
+- 10pt cover = 80# cover (we stock: Endurance 80# Gloss @ $0.0951)
+- **12pt cover = 100# cover** ✅ WE STOCK THIS (Endurance 100# Gloss @ $0.0965 OR Kallima 14pt @ $0.123)
+- 14pt cover = 120# cover (we stock: Kallima 14pt C2S @ $0.123 - most popular!)
+- 16pt cover = 130# cover (we stock: Endurance 130# Silk @ $0.1331)
+
+TEXT STOCK CONVERSIONS:
+- 60# text = standard text weight (we stock: Endurance 80# @ $0.0408)
+- 80# text = 80# text (exact match - Endurance 80# Gloss @ $0.0408)
+- 100# text = 100# text (exact match - Endurance 100# Gloss @ $0.0505)
+
+WHEN USER REQUESTS BY POINTS:
+1. Check conversion table above
+2. If exact equivalent exists in stock → USE IT (no disclaimer needed)
+3. Only if no equivalent exists → offer estimated/alternative options
+
+EXAMPLE:
+User: "quote 1000 postcards 12pt gloss"
+System thinks: "12pt = 100# cover = Endurance 100# Gloss @ $0.0965 ✅ WE HAVE THIS!"
+System responds: [Calculate quote normally with 100# Gloss @ $0.0965]
+System notes: "Using Endurance 100# Gloss Cover (12pt equivalent)"
+
 FOR LETTERS (8.5×11):
 → DEFAULT: SKU 63352 (Williamsburg 60# @ $0.0125) unless user explicitly requests premium
 → HONOR explicit requests for premium stocks (e.g., "100# gloss text")
@@ -540,6 +565,64 @@ Machine insert (standard):
 TOTAL: $0.079/pc (1 sheet) or $0.089/pc (2 sheets)
 
 === CRITICAL RULES ===
+
+⚠️ HANDLING UNAVAILABLE STOCKS:
+FIRST: Check the STOCK CONVERSION TABLE above
+- If user requests "12pt gloss" → That's 100# gloss → WE HAVE IT! Use $0.0965
+- If user requests "14pt cover" → That's our Kallima 14pt → WE HAVE IT! Use $0.123
+- If user requests "16pt cover" → That's 130# cover → WE HAVE IT! Use $0.1331
+
+ONLY IF no conversion equivalent exists, then:
+
+STEP 1 - ALERT & OFFER OPTIONS:
+Present user with 3 choices:
+A) Use an ESTIMATED cost (interpolated from similar stocks we carry)
+B) Switch to a stocked alternative (provide specific options with prices)
+C) Adjust specifications
+
+STEP 2 - IF USER CHOOSES ESTIMATED COST:
+Calculate interpolated cost based on similar stocks:
+
+Example for 11pt cover (NOT in conversion table):
+- We stock: 10pt (80# @ $0.0951)
+- We stock: 12pt (100# @ $0.0965)
+- Estimated 11pt cost: Average = ($0.0951 + $0.0965) ÷ 2 × 1.10 buffer = ~$0.10/sheet
+
+Provide quote with CLEAR DISCLAIMER:
+"⚠️ ESTIMATED QUOTE - 11pt cover is not a standard thickness.
+This quote uses an estimated paper cost of $X.XX/sheet based on similar stocks.
+Final pricing will be confirmed once we source the specific stock you need."
+
+INTERPOLATION FORMULA:
+For weights between stocked options:
+- Identify closest lighter stock (cost_light)
+- Identify closest heavier stock (cost_heavy)
+- Estimate = (cost_light + cost_heavy) ÷ 2
+- Add 10% buffer for sourcing: estimate × 1.10
+
+EXAMPLE RESPONSE FOR 12PT REQUEST:
+"⚠️ We don't stock 12pt gloss cover in our regular inventory.
+
+I can provide you with:
+
+Option A: ESTIMATED quote using 12pt
+• I'll interpolate the paper cost between our 100# gloss (~10pt) and 14pt stocks
+• Quote will be flagged as estimated pending stock sourcing confirmation
+• Would you like me to calculate this?
+
+Option B: Quote using our stocked alternatives
+• Kallima 14pt C2S @ $0.123/sheet (heavier, most popular)
+• Endurance 100# Gloss @ $0.0965/sheet (lighter, economical)
+
+Which would you prefer?"
+
+STOCKS WE DO NOT CARRY (but CAN estimate):
+- 12pt cover (any finish) - estimate between 100# gloss and 14pt
+- 10pt cover (any finish) - estimate from 100# gloss
+- 90# text - estimate between 80# and 100#
+- Any specific weight/thickness not in database
+
+WAIT for user confirmation before proceeding with EITHER estimated OR alternative stock quote.
 
 SPOILAGE (ALIGNED WITH PRICING):
 - 1-250 qty: 5% spoilage (×1.05)
