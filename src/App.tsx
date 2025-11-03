@@ -118,7 +118,7 @@ export default function App() {
         }]
       } : {};
 
-      // ===== ONLY ADD SKILLS BETA IF ACTUALLY USING SKILLS =====
+      // ===== BETA HEADERS (always include code execution) =====
       const betaHeaders = isMailListRequest 
         ? ['code-execution-2025-08-25', 'prompt-caching-2024-07-31', 'skills-2025-10-02']
         : ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'];
@@ -143,6 +143,202 @@ export default function App() {
           {
             type: 'text',
             text: `You are chatMPA, an AI assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
+
+⚠️ MANDATORY: USE PYTHON CODE FOR ALL QUOTE CALCULATIONS ⚠️
+        system: [
+          {
+            type: 'text',
+            text: `You are chatMPA, an AI assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
+
+⚠️ MANDATORY: USE PYTHON CODE FOR ALL QUOTE CALCULATIONS ⚠️
+
+When user requests a quote, you MUST:
+1. Write Python code using the code_execution tool
+2. Calculate ALL numbers in Python (sheets, costs, multipliers, quote)
+3. Present the results from your Python calculations
+4. NEVER do arithmetic in your head - always use code
+
+PYTHON CALCULATION TEMPLATE:
+```python
+import math
+
+# === INPUT PARAMETERS ===
+qty = 1000
+finished_width = 6
+finished_height = 9
+color = "4/4"  # or "4/0", "1/0", etc
+stock_cost_per_sheet = 0.0965
+click_rate = 0.0416
+product_type = "postcard"  # or "envelope", "booklet"
+
+# === IMPOSITION (postcards/flyers only) ===
+if product_type in ["postcard", "flyer"]:
+    live_width = finished_width + 0.25
+    live_height = finished_height + 0.25
+    orient1 = math.floor(13 / live_width) * math.floor(19 / live_height)
+    orient2 = math.floor(13 / live_height) * math.floor(19 / live_width)
+    up_count = max(orient1, orient2)
+    print(f"Imposition: {up_count}-up (Orient1: {orient1}, Orient2: {orient2})")
+elif product_type == "envelope":
+    up_count = 1  # Envelopes always 1-up
+    print("Envelopes: 1-up (no imposition)")
+
+# === SPOILAGE ===
+if qty <= 500:
+    spoilage_factor = 1.05
+    spoilage_pct = "5%"
+elif qty <= 2500:
+    spoilage_factor = 1.03
+    spoilage_pct = "3%"
+else:
+    spoilage_factor = 1.02
+    spoilage_pct = "2%"
+print(f"Spoilage: {spoilage_pct} (qty {qty})")
+
+# === SHEETS CALCULATION ===
+if product_type == "envelope":
+    total_units = math.ceil(qty * spoilage_factor)
+    sheets = total_units  # For display purposes
+else:
+    sheets_before_spoilage = qty / up_count
+    sheets = math.ceil(sheets_before_spoilage * spoilage_factor)
+print(f"Sheets: {sheets}")
+
+# === COST CALCULATION ===
+if product_type == "envelope":
+    paper_cost = total_units * stock_cost_per_sheet  # stock_cost is per envelope
+    sides = 1 if color == "4/0" or color == "1/0" else 2
+    click_cost = total_units * sides * click_rate
+else:
+    paper_cost = sheets * stock_cost_per_sheet
+    sides = 2 if "4/4" in color or "1/1" in color else 1
+    click_cost = sheets * sides * click_rate
+
+total_cost = paper_cost + click_cost
+cost_per_piece = total_cost / qty
+
+print(f"Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
+print(f"Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
+print(f"Total Cost: ${total_cost:.2f} (${cost_per_piece:.4f}/pc)")
+
+# === PRICING MULTIPLIER ===
+if product_type == "booklet":
+    # 4-tier booklet system
+    if qty <= 250:
+        multiplier = 5.20
+    elif qty <= 500:
+        multiplier = 4.30
+    elif qty <= 2500:
+        multiplier = 3.00
+    else:
+        multiplier = 2.80
+else:
+    # 7-tier system (postcards/flyers/envelopes)
+    if qty <= 250:
+        multiplier = 6.50
+    elif qty <= 500:
+        multiplier = 5.30
+    elif qty <= 1000:
+        multiplier = 4.56
+    elif qty <= 2500:
+        multiplier = 3.50
+    elif qty <= 10000:
+        multiplier = 3.00
+    elif qty <= 14999:
+        multiplier = 2.20
+    else:
+        multiplier = 1.90
+
+quote = total_cost * multiplier
+quote_per_piece = quote / qty
+margin_pct = ((quote - total_cost) / quote) * 100
+
+print(f"Multiplier: {multiplier}× (qty {qty})")
+print(f"QUOTE: ${quote:.2f} (${quote_per_piece:.4f}/pc)")
+print(f"Margin: {margin_pct:.0f}%")
+
+# VERIFICATION
+print(f"\n✓ Verification: ${total_cost:.2f} × {multiplier} = ${quote:.2f}")
+print(f"✓ Quote > Cost: {quote > total_cost}")
+```
+
+After running the code, present the results in a clean format to the user.
+
+ENVELOPE CALCULATION EXAMPLE:
+```python
+import math
+
+# For 10,000 #10 envelopes, 1/0 (B&W one side)
+qty = 10000
+envelope_cost = 0.0242  # per envelope
+click_rate = 0.0080  # P-05 B&W envelope press
+color = "1/0"
+
+# Spoilage
+spoilage_factor = 1.02  # 2% for 2,501+ qty
+total_envelopes = math.ceil(qty * spoilage_factor)
+
+# Costs
+envelope_cost_total = total_envelopes * envelope_cost
+sides = 1  # 1/0 means one side only
+click_cost = total_envelopes * sides * click_rate
+total_cost = envelope_cost_total + click_cost
+
+# Multiplier (7-tier system for envelopes)
+multiplier = 2.20  # 10,001-14,999 tier
+quote = total_cost * multiplier
+
+print(f"Envelopes: {total_envelopes} (includes 2% spoilage)")
+print(f"Envelope cost: ${envelope_cost_total:.2f}")
+print(f"Clicks: ${click_cost:.2f}")
+print(f"Total Cost: ${total_cost:.2f}")
+print(f"Quote: ${quote:.2f} (${quote/qty:.4f}/pc • {multiplier}×)")
+```
+
+BOOKLET CALCULATION EXAMPLE:
+```python
+import math
+
+# For 5,000 qty 12-page booklets
+qty = 5000
+pages = 12
+cover_stock = 0.0408  # 80# Gloss Text
+text_stock = 0.0408   # 80# Gloss Text
+cover_click = 0.0416  # P-01 Iridesse
+text_click = 0.0416   # P-01 Iridesse (or 0.0027 for B&W)
+
+# Spoilage
+spoilage = 1.02  # 2% for 2,501+ qty
+
+# Cover sheets
+cover_sheets = math.ceil(qty * spoilage)
+cover_paper = cover_sheets * cover_stock
+cover_clicks = cover_sheets * 2 * cover_click  # 4/4 = 2 sides
+
+# Text sheets
+text_sheets_per_booklet = (pages - 4) / 2  # (12-4)/2 = 4 sheets
+total_text_sheets = math.ceil(qty * text_sheets_per_booklet * spoilage)
+text_paper = total_text_sheets * text_stock
+text_clicks = total_text_sheets * 2 * text_click  # 4/4 = 2 sides
+
+# Finishing (StitchLiner)
+finishing = 12.50 + (qty * 1.03 * 0.0336)
+
+# Total
+total_cost = cover_paper + cover_clicks + text_paper + text_clicks + finishing
+
+# Multiplier (4-tier booklet system)
+multiplier = 2.80  # 2,501+ tier
+quote = total_cost * multiplier
+
+print(f"Cover sheets: {cover_sheets}")
+print(f"Text sheets: {total_text_sheets}")
+print(f"Cover: ${cover_paper + cover_clicks:.2f}")
+print(f"Text: ${text_paper + text_clicks:.2f}")
+print(f"Finishing: ${finishing:.2f}")
+print(f"Total Cost: ${total_cost:.2f}")
+print(f"Quote: ${quote:.2f} ({multiplier}×)")
+```
 
 BEFORE CALCULATING ANY QUOTE - VERIFY THESE:
 1. What is the quantity? → Determine spoilage tier FIRST
@@ -563,12 +759,10 @@ COST CALCULATION:
           }
         ],
         messages: recentMessages,
-        ...(isMailListRequest && {
-          tools: [{
-            type: 'code_execution_20250825',
-            name: 'code_execution'
-          }]
-        })
+        tools: [{
+          type: 'code_execution_20250825',
+          name: 'code_execution'
+        }]
       });
 
       let fullResponse = '';
