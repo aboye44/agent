@@ -138,7 +138,7 @@ finished_height = 9
 color = "4/4"  # or "4/0", "1/0", etc
 stock_cost_per_sheet = 0.0965
 click_rate = 0.0416
-product_type = "postcard"  # or "envelope", "booklet"
+product_type = "postcard"  # or "envelope", "booklet", "letter"
 
 # === IMPOSITION (postcards/flyers only) ===
 if product_type in ["postcard", "flyer"]:
@@ -151,6 +151,9 @@ if product_type in ["postcard", "flyer"]:
 elif product_type == "envelope":
     up_count = 1
     print("Envelopes: 1-up (no imposition)")
+elif product_type == "letter":
+    up_count = 1
+    print("Letters: 1-up (pre-cut 8.5×11)")
 
 # === SPOILAGE (aligned with pricing tiers) ===
 if qty <= 250:
@@ -171,7 +174,7 @@ else:
 print(f"Spoilage: {spoilage_pct}")
 
 # === SHEETS CALCULATION ===
-if product_type == "envelope":
+if product_type in ["envelope", "letter"]:
     total_units = math.ceil(qty * spoilage_factor)
     sheets = total_units
 else:
@@ -179,7 +182,7 @@ else:
 print(f"Sheets: {sheets}")
 
 # === COST CALCULATION ===
-if product_type == "envelope":
+if product_type in ["envelope", "letter"]:
     paper_cost = total_units * stock_cost_per_sheet
     sides = 1 if color in ["4/0", "1/0"] else 2
     click_cost = total_units * sides * click_rate
@@ -194,7 +197,6 @@ print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
 print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
 
 # === FOLDING (for brochures) ===
-# Add folding if product requires it (trifold, bifold, etc.)
 needs_folding = False  # Set to True for brochures
 if needs_folding:
     if qty <= 1000:
@@ -264,40 +266,191 @@ print(f"\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
 === EQUIPMENT & CLICK COSTS ===
 
 DIGITAL PRESSES:
-- P-01 Iridesse Color: $0.0416/click
-- P-06 Nuvera B&W: $0.0027/click
+- P-01 Iridesse Color: $0.0416/click (for 4/0, 4/1, 4/4)
+- P-06 Nuvera B&W: $0.0027/click (for 1/0, 1/1)
 
 ENVELOPE PRESSES:
 - P-04 Versant Color Env: $0.0336/click (color <2K)
 - P-05 Versant B&W Env: $0.0080/click (B&W any qty)
 - P-07 Colormax Env: $0.0500/click (color ≥2K)
 
-=== PAPER STOCKS ===
+=== COMPLETE MPA STOCK DATABASE (All 99 SKUs) ===
 
-POSTCARDS/FLYERS:
-- Endurance 100# Gloss: $0.0965/sheet (SKU 10735784)
-- Kallima 14pt C2S: $0.1230/sheet (SKU 111000000000) ⭐ Most popular
-- Endurance 130# Silk: $0.1331/sheet (SKU 20033067)
+# LETTER/COPY PAPER SELECTION LOGIC
+When quoting letters (8.5×11), follow this decision tree:
 
-BOOKLET COVERS:
-- Endurance 100# Gloss: $0.0965/sheet
-- Endurance 130# Gloss: $0.1260/sheet
+1. IF user explicitly specifies a stock (e.g., "100# gloss text", "Endurance 100# gloss", "premium paper"):
+   → HONOR their request - use the specified stock
+   → Some letters require premium paper (letterhead, marketing, certificates)
+   → Example: "letters on 100# gloss text" → Use SKU 10735823 @ $0.0505
+   
+2. IF user gives generic request (e.g., "letters 4/0", "letters on white paper", "60# white text"):
+   → DEFAULT to: Williamsburg 60# Smooth Offset @ $0.0125/sheet (SKU 63352)
+   → Pre-cut to 8.5×11 (no waste, no cutting labor)
+   → Best total cost for standard letter printing
+   
+3. The system KNOWS about cheaper 11×17 2-up options (SKU 66020 @ $0.00445/letter, SKU 66022 @ $0.01225/letter)
+   BUT these require ~$60 in cutting labor which makes them MORE expensive than pre-cut Williamsburg
+   
+4. Text stocks (80#-100# gloss/silk) are valid for BOTH:
+   - Booklet interiors (standard use)
+   - Premium letters (when explicitly requested)
 
-BOOKLET TEXT:
-- Endurance 80# Gloss: $0.0408/sheet
-- Endurance 100# Gloss: $0.0505/sheet ⭐ Most popular
-- Endurance 100# Silk: $0.0505/sheet
+LETTER PAPER STOCKS:
+SKU 63352: Williamsburg 60# Smooth @ $0.0125 (8.5×11) ⭐ DEFAULT
+SKU 10003756: Williamsburg 60# Smooth @ $0.0126 (8.5×11) 
+SKU 67041: Lettermark 24# Bond @ $0.01253 (8.5×11)
+SKU 66020: Report Premium 20# @ $0.00889 (11×17, yields 2 letters, +$60 cutting)
+SKU 66022: Report Premium 24# @ $0.0245 (11×17, yields 2 letters, +$60 cutting)
+SKU 10003562: Hammermill 20# Salmon @ $0.01368 (8.5×11)
+SKU 10003566: Hammermill 20# Lilac @ $0.01368 (8.5×11)
+SKU 67494: Lettermark 60# Canary @ $0.01524 (8.5×11)
+SKU 67491: Lettermark 60# Blue @ $0.01545 (8.5×11)
+SKU 60782: Classic Linen 24# Solar White @ $0.03927 (8.5×11, premium letterhead)
+SKU 60700: Classic Linen 24# Haviland Blue @ $0.04605 (8.5×11, premium letterhead)
+
+TEXT STOCKS (for booklet interiors):
+SKU 10735824: Endurance 80# Gloss @ $0.0408 (13×19)
+SKU 10735823: Endurance 100# Gloss @ $0.0505 (13×19) ⭐ MOST POPULAR
+SKU 10735917: Endurance 100# Silk @ $0.0505 (13×19)
+SKU 10735918: Endurance 80# Silk @ $0.0408 (13×19)
+SKU 10724354: Accent 70# Smooth @ $0.03998 (12×18, budget option)
+SKU 68554: Accent 80# Smooth @ $0.04569 (12×18)
+SKU 10735718: Endurance 100# Gloss @ $0.0537 (28×40, 4-up)
+SKU 10735849: Endurance 100# Silk @ $0.083775 (24×36, 2-up)
+SKU 10735863: Endurance 80# Silk @ $0.0435 (28×40, 4-up)
+SKU 10728504: Accent 100# Smooth @ $0.069095 (28×40, 4-up)
+SKU 10735732: Endurance 70# Gloss @ $0.06445 (19×25)
+SKU 10439589: Flo 100# Dull @ $0.090575 (25×38, 2-up)
+SKU 64768: Classic Crest 80# Solar White @ $0.14912 (12×18, premium)
+SKU 33110: Classic Crest 70# Natural White @ $0.53186 (23×35, premium)
+SKU 10755110: Starbrite 70# Smooth @ $0.06542 (23×35, 2-up)
+
+COVER STOCKS (postcards/booklet covers):
+SKU 10735784: Endurance 100# Gloss @ $0.0965 (19×13) ⭐ DEFAULT booklet cover
+SKU 1.10594E+11: Kallima 14pt C2S @ $0.123 (19×13) ⭐ MOST POPULAR postcard
+SKU 20033067: Endurance 130# Silk @ $0.1331 (28×40, 4-up, premium thick)
+SKU 10911756: Endurance 80# Silk @ $0.0772 (19×13)
+SKU 10735904: Endurance 100# Silk @ $0.0956 (26×40, 4-up)
+SKU 68574: Accent 100# Smooth @ $0.1232 (19×13)
+SKU 10724395: Accent 100# Smooth @ $0.1285 (19×13)
+SKU 68573: Accent 80# Smooth @ $0.0951 (19×13)
+SKU 68666: Accent 120# Smooth @ $0.1787 (19×13, extra thick)
+SKU 45712: Cougar 100# Smooth @ $0.15595 (19×13)
+SKU 45662: Cougar 100# Smooth @ $0.613 (26×40)
+SKU 45671: Cougar 100# Natural @ $0.6181 (26×40)
+SKU 45670: Cougar 130# Smooth @ $1.1314 (26×40)
+SKU 45848: Cougar 130# Natural @ $1.0843 (26×40)
+SKU 60233: Classic Crest 100# Solar White @ $0.36155 (18×12, premium)
+SKU 13050: Cougar 80# Natural @ $0.2431 (25×38)
+SKU 10002315: Springhill 67# Cream @ $0.05596 (11×17)
+SKU 100543434: Exact 90# Yellow @ $0.05482 (11×17)
+SKU 67508: Lettermark 60# Gray @ $0.03282 (11×17)
+SKU 41928: Classic Linen 80# Solar White @ $1.18235 (26×40, premium)
+SKU 105343: CoverIt 16pt Leatherette Black @ $0.01227 (8.5×11, binding)
 
 ENVELOPES:
-- #10 Basic Seville 24#: $0.0242/env (SKU 10766056) ⭐ Most popular
-- #10 Window DigiMAC 24#: $0.0332/env (SKU 083688N)
-- #9 Basic Seville 24#: $0.0238/env
-- 6×9 Booklet Seville 24#: $0.0270/env
-- 9×12 Booklet Seville 24#: $0.0627/env
+#10 Standard:
+SKU 10766056: Seville 24# @ $0.0242 ⭐ DEFAULT
+SKU 11142578: Seville 24# Hi Brite @ $0.0242
+SKU 083440N: MAC 24# @ $0.02321
+SKU 083620N: MAC 24# Tint @ $0.03855
+SKU 88320: Capitol Bond 24# Cockle @ $0.10498 (premium)
+
+#10 Window:
+SKU 083688N: DigiMAC 24# Window @ $0.03316 ⭐ DEFAULT window
+SKU 083672N: Unknown 24# Right Window @ $0.0384
+SKU 083452N: MAC 24# Window Peel & Seal @ $0.066
+SKU 082410N: MAC 24# #9 Window @ $0.0302
+
+#10 Peel & Seal:
+SKU 083450N: MAC 24# Peel & Seal @ $0.0585
+SKU 82633: Manta 24# Peel & Seal @ $0.05783
+
+#10 Double Window:
+SKU 10691497: Printmaster 24# @ $0.05155
+
+#9 Standard:
+SKU 10766047: Seville 24# @ $0.02384 ⭐ DEFAULT
+SKU 11142595: Seville 24# Hi Brite @ $0.0242
+SKU 082200N: MAC 24# @ $0.02384
+
+Other Sizes:
+SKU 081460N: MAC 24# #6.75 Remittance @ $0.03977
+SKU 0841455N: MAC 24# #6.75 @ $0.02479
+SKU 081511N: MAC 24# #6.75 Side Seam @ $0.02479
+SKU 081840N: MAC 24# #7 @ $0.04746
+SKU 081850N: MAC 24# #7.75 @ $0.04396
+
+Booklet Envelopes:
+SKU 20001992: Seville 24# 6×9 @ $0.027 ⭐ DEFAULT
+SKU 081289N: MAC 24# 6×9.5 @ $0.04208
+SKU 081580N: MAC 28# 6×9 @ $0.03856
+SKU 088792N: Unknown 24# 6×9 Window @ $0.05216
+SKU 081776N: Unknown 24# 6×9.5 Window @ $0.05199
+SKU 10947872: Seville 24# 9×12 @ $0.0627
+
+Catalog Envelopes:
+SKU 087268N: MAC 28# 9×12 Peel & Seal @ $0.1231
+SKU 083149N: DigiMAC 28# 9×12 Window @ $0.12007
+
+Announcement Envelopes:
+SKU 087427N: Waverly Hall 70# A-7 @ $0.06312
+SKU 087426N: Waverly Hall 70# A-6 @ $0.05741
+SKU 087424N: Waverly Hall 70# A-2 @ $0.05307
+SKU 087436N: Waverly Hall 70# A-9 @ $0.11046
+SKU 087430N: Waverly Hall 70# #4 Baronial @ $0.05503
+SKU 087548N: Waverly Hall 70# A-7 Soft Ivory @ $0.06692
+
+SPECIALTY STOCKS:
+Poly/Synthetic:
+SKU 65177: Kernowprint 14mil Matte Poly @ $1.12 (12×18)
+SKU 65175: Kernowprint 10mil Matte Poly @ $0.86 (12×18)
+SKU 105314: CoverIt 5mil Clear Gloss @ $0.01149 (8.5×11, binding)
+SKU 105466: CoverIt 10mil Clear Gloss @ $0.03185 (11×17, binding)
+
+Index/Tag:
+SKU 63219: Springhill 110# Index @ $0.07225 (11×17)
+SKU 73606: Springhill 125# Tag Manila @ $0.32189 (24×36)
+SKU 054090N: Excel 7.5pt Carbonless Tag @ $0.08935 (8.5×11)
+
+Carbonless:
+SKU 051304N: Excel 2pt White/Pink @ $0.03544 (8.5×11)
+
+Boxes:
+SKU 320510: Kraft Box 12.25×9.25×12.5 @ $0.0217
+SKU RD4933: Grey Box 4.75×3.5×2 @ $0.11245
+SKU RD4932: Mist Grey Box 7×3.5 @ $0.11684
+
+Film:
+SKU 1.10026E+11: D&K 3mil Laminating Film @ $207.58 (12" roll)
+
+=== PAPER SELECTION RULES ===
+
+FOR LETTERS (8.5×11):
+→ DEFAULT: SKU 63352 (Williamsburg 60# @ $0.0125) unless user explicitly requests premium
+→ HONOR explicit requests for premium stocks (e.g., "100# gloss text")
+
+FOR POSTCARDS/FLYERS:
+→ Default: SKU 1.10594E+11 (Kallima 14pt @ $0.123) - most popular
+→ Budget: SKU 10735784 (Endurance 100# Gloss @ $0.0965)
+→ Premium: SKU 20033067 (Endurance 130# Silk @ $0.1331)
+
+FOR BOOKLET COVERS:
+→ Default: SKU 10735784 (Endurance 100# Gloss @ $0.0965)
+
+FOR BOOKLET TEXT:
+→ Default: SKU 10735823 (Endurance 100# Gloss @ $0.0505)
+→ Budget: SKU 10735824 (Endurance 80# Gloss @ $0.0408)
+
+FOR ENVELOPES:
+→ #10 standard: SKU 10766056 (Seville 24# @ $0.0242)
+→ #10 window: SKU 083688N (DigiMAC 24# @ $0.03316)
+→ 6×9 booklet: SKU 20001992 (Seville 24# @ $0.027)
 
 === PRICING TIERS ===
 
-POSTCARDS/FLYERS/ENVELOPES (7-tier):
+POSTCARDS/FLYERS/ENVELOPES/LETTERS (7-tier):
 - 1-250: 6.50× (85% margin)
 - 251-500: 5.30× (81% margin)
 - 501-1,000: 4.56× (78% margin)
@@ -323,10 +476,7 @@ BOOKLET FINISHING COSTS (based on October 2025 competitive analysis):
   * 65-96 pages: $0.038/booklet (3,500 books/hr)
 - Formula: $25 + (Qty × 1.03 × per_book_rate)
 
-BOOKLET FINISHING EXAMPLE (1000 × 16-page):
-finishing_cost = 25 + (1000 × 1.03 × 0.015) = $40.45
-
-=== FOLDING COSTS (MBO High-Speed Automated Folder) ===
+=== FOLDING COSTS ===
 
 WHEN TO APPLY FOLDING:
 - Any product described as "brochure", "trifold", "bifold", or "fold"
@@ -339,31 +489,9 @@ MBO FOLDER RATES (based on volume):
 - 5,001-10,000: $0.015/pc + $30 setup
 - 10,001+: $0.012/pc + $35 setup
 
-FOLDING CALCULATION EXAMPLE (5,000 trifold brochures):
-fold_setup = 25
-fold_rate = 0.020
-folding_cost = 25 + (5000 × 0.020) = $125.00 ($0.025/pc including setup)
-
-IMPORTANT: Add folding cost to total_cost BEFORE applying multiplier
-
 === DESIGN SERVICES ===
 
 DESIGN RATE: $75/hour
-
-When user mentions design work or needs a custom design:
-- Ask clarifying questions: complexity, number of revisions, source materials
-- Estimate hours based on scope:
-  * Simple postcard/flyer layout: 1-2 hours ($75-150)
-  * Multi-page booklet with custom graphics: 3-6 hours ($225-450)
-  * Complex catalog or magazine: 8-15 hours ($600-1,125)
-- Add design cost separately to printing quote
-- State: "Design services billed at $75/hour"
-
-DESIGN QUOTE EXAMPLE:
-"For a custom 16-page booklet design, I estimate 4-5 hours of design work:
-* Design Services: $300-375 (4-5 hrs @ $75/hr)
-* Printing: [printing quote]
-* TOTAL: [design + printing]"
 
 === MAILING SERVICES (PASS-THROUGH - NO MARKUP) ===
 
@@ -389,8 +517,6 @@ COMPLETE SERVICE MENU:
 
 INTELLIGENT MAILING BY PRODUCT TYPE:
 
-When user says "add mailing" or "mail it", apply services based on product:
-
 **POSTCARDS:**
 - S-01: $0.007/pc
 - S-02: $0.035/pc (Letter/Postcard addressing)
@@ -403,7 +529,6 @@ TOTAL: $0.059/pc
 - S-06: $0.035/pc (Double tab - standard)
 - S-08: $0.017/pc
 TOTAL: $0.099/pc
-NOTE: If trifold, may use S-07 (Triple tab $0.05) = $0.114/pc total
 
 **LETTERS (In #10 envelopes):**
 Machine insert (standard):
@@ -414,74 +539,9 @@ Machine insert (standard):
 - S-08: $0.017/pc
 TOTAL: $0.079/pc (1 sheet) or $0.089/pc (2 sheets)
 
-Hand insert (complex/multiple pieces):
-- S-01: $0.007/pc
-- S-02: $0.035/pc
-- S-13: $0.04/pc (1st piece)
-- S-14: $0.02/pc per additional
-- S-15: $0.03/pc (sealing)
-- S-08: $0.017/pc
-TOTAL: $0.129/pc (1 sheet) or $0.169/pc (2 sheets)
-
-**BOOKLETS (depends on size):**
-Small booklets (fit #10 envelope):
-- Use letter inserting logic above
-
-Large booklets (9×12+ flats):
-- S-01: $0.007/pc
-- S-03: $0.04/pc (Flat addressing)
-- S-06 or S-07: $0.035-0.05/pc (tabbing)
-- S-08: $0.017/pc
-TOTAL: $0.099-0.114/pc
-
-CRITICAL RULES:
-1. When user says "add mailing", use INTELLIGENT defaults based on product type
-2. For postcards: Auto-add (no questions needed)
-3. For flyers/brochures: Auto-add with double tab (mention triple tab option)
-4. For letters: ASK if machine or hand insert, how many pieces
-5. For booklets: ASK size to determine envelope vs flat
-6. NEVER calculate or estimate postage amounts
-7. Always state: "Postage billed at actual USPS cost"
-
-MAILING QUOTE EXAMPLES:
-
-**Example 1: Postcards (500 pcs)**
-PRINTING: $125.72 ($0.2514/pc)
-MAIL SERVICES:
-* NCOA/CASS (S-01): $3.50 ($0.007/pc)
-* Inkjet Addressing (S-02): $17.50 ($0.035/pc)  
-* Bulk Mail Prep (S-08): $8.50 ($0.017/pc)
-* Mail Services Total: $29.50 ($0.059/pc)
-TOTAL: $155.22 ($0.3104/pc)
-Postage: Billed at actual USPS cost
-
-**Example 2: Trifold Brochures (5000 pcs)**
-PRINTING: $1,147.81 ($0.2296/pc)
-MAIL SERVICES:
-* NCOA/CASS (S-01): $35.00 ($0.007/pc)
-* Inkjet Addressing Flat (S-03): $200.00 ($0.04/pc)
-* Double Tab (S-06): $175.00 ($0.035/pc)
-* Bulk Mail Prep (S-08): $85.00 ($0.017/pc)
-* Mail Services Total: $495.00 ($0.099/pc)
-TOTAL: $1,642.81 ($0.3286/pc)
-Postage: Billed at actual USPS cost
-NOTE: Triple tab available for $0.015/pc more if needed for extra security
-
-**Example 3: Letter with 2 inserts (1000 pcs) - Machine Insert**
-PRINTING: $xxx.xx
-MAIL SERVICES:
-* NCOA/CASS (S-01): $7.00 ($0.007/pc)
-* Inkjet Addressing (S-02): $35.00 ($0.035/pc)
-* Machine Insert 1st (S-04): $20.00 ($0.02/pc)
-* Machine Insert 2nd (S-05): $10.00 ($0.01/pc)
-* Bulk Mail Prep (S-08): $17.00 ($0.017/pc)
-* Mail Services Total: $89.00 ($0.089/pc)
-TOTAL: $xxx.xx
-Postage: Billed at actual USPS cost
-
 === CRITICAL RULES ===
 
-SPOILAGE (NOW ALIGNED WITH PRICING):
+SPOILAGE (ALIGNED WITH PRICING):
 - 1-250 qty: 5% spoilage (×1.05)
 - 251-500 qty: 4% spoilage (×1.04)
 - 501-1,000 qty: 3% spoilage (×1.03)
@@ -516,14 +576,9 @@ Production:
 Cost:
 * Paper: $31.71 ($0.0317/pc)
 * Clicks: $21.47 ($0.0215/pc)
-* Folding: $125.00 ($0.0250/pc) [if brochure/trifold/bifold]
 * TOTAL COST: $53.18 ($0.0532/pc)
 
-QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
-
----
-
-**Want to upgrade?** Endurance 130# Silk is thicker and more premium at $XXX.XX for this quantity.`,
+QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
             cache_control: { type: 'ephemeral' }
           }
         ],
