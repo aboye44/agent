@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Copy, RefreshCw } from 'lucide-react';
+import { Send, Sparkles, Copy, RefreshCw, User } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 
 export default function App() {
@@ -24,6 +24,39 @@ export default function App() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Add custom scrollbar styles
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Custom scrollbar for webkit browsers */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      
+      ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+        border-radius: 10px;
+        transition: background 0.2s;
+      }
+      
+      ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+      }
+      
+      /* Custom scrollbar for Firefox */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: #3b82f6 transparent;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
@@ -653,9 +686,11 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
                     ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
                     : 'bg-neutral-800 border border-neutral-700'
                 }`}>
-                  <span className="text-sm font-bold text-white">
-                    {msg.role === 'user' ? 'Y' : 'AI'}
-                  </span>
+                  {msg.role === 'user' ? (
+                    <User className="w-5 h-5 text-white" strokeWidth={2.5} />
+                  ) : (
+                    <Sparkles className="w-5 h-5 text-blue-400" strokeWidth={2.5} />
+                  )}
                 </div>
                 
                 {/* Message Content */}
