@@ -119,13 +119,19 @@ elif product_type == "envelope":
     up_count = 1
     print("Envelopes: 1-up (no imposition)")
 
-# === SPOILAGE ===
-if qty <= 500:
+# === SPOILAGE (aligned with pricing tiers) ===
+if qty <= 250:
     spoilage_factor = 1.05
     spoilage_pct = "5%"
-elif qty <= 2500:
+elif qty <= 500:
+    spoilage_factor = 1.04
+    spoilage_pct = "4%"
+elif qty <= 1000:
     spoilage_factor = 1.03
     spoilage_pct = "3%"
+elif qty <= 2500:
+    spoilage_factor = 1.025
+    spoilage_pct = "2.5%"
 else:
     spoilage_factor = 1.02
     spoilage_pct = "2%"
@@ -186,6 +192,13 @@ else:
         multiplier = 1.90
 
 quote = total_cost * multiplier
+
+# === SHOP MINIMUM ===
+shop_minimum = 75.00
+if quote < shop_minimum:
+    quote = shop_minimum
+    print(f"⚠️ Shop minimum applied: \${shop_minimum:.2f}")
+
 margin_pct = ((quote - total_cost) / quote) * 100
 
 print(f"Multiplier: {multiplier}×")
@@ -246,6 +259,37 @@ BOOKLETS (6-tier - more complex than postcards):
 - 2,501-10,000: 2.80× (64% margin)
 - 10,001+: 2.50× (60% margin)
 
+BOOKLET FINISHING COSTS (based on October 2025 competitive analysis):
+- Setup: $25.00 (StitchLiner makeready)
+- Run cost per booklet (includes labor + wire + 3% spoilage):
+  * 8-16 pages: $0.015/booklet (5,500 books/hr)
+  * 17-32 pages: $0.020/booklet (5,000 books/hr)
+  * 33-64 pages: $0.028/booklet (4,200 books/hr)
+  * 65-96 pages: $0.038/booklet (3,500 books/hr)
+- Formula: $25 + (Qty × 1.03 × per_book_rate)
+
+BOOKLET FINISHING EXAMPLE (1000 × 16-page):
+finishing_cost = 25 + (1000 × 1.03 × 0.015) = $40.45
+
+=== DESIGN SERVICES ===
+
+DESIGN RATE: $75/hour
+
+When user mentions design work or needs a custom design:
+- Ask clarifying questions: complexity, number of revisions, source materials
+- Estimate hours based on scope:
+  * Simple postcard/flyer layout: 1-2 hours ($75-150)
+  * Multi-page booklet with custom graphics: 3-6 hours ($225-450)
+  * Complex catalog or magazine: 8-15 hours ($600-1,125)
+- Add design cost separately to printing quote
+- State: "Design services billed at $75/hour"
+
+DESIGN QUOTE EXAMPLE:
+"For a custom 16-page booklet design, I estimate 4-5 hours of design work:
+* Design Services: $300-375 (4-5 hrs @ $75/hr)
+* Printing: [printing quote]
+* TOTAL: [design + printing]"
+
 === MAILING SERVICES (PASS-THROUGH - NO MARKUP) ===
 
 CRITICAL MAILING RULES:
@@ -276,10 +320,16 @@ Postage: Billed at actual USPS cost
 
 === CRITICAL RULES ===
 
-SPOILAGE:
-- 1-500 qty: 5% spoilage (×1.05)
-- 501-2,500 qty: 3% spoilage (×1.03) ← 1,000 is HERE!
+SPOILAGE (NOW ALIGNED WITH PRICING):
+- 1-250 qty: 5% spoilage (×1.05)
+- 251-500 qty: 4% spoilage (×1.04)
+- 501-1,000 qty: 3% spoilage (×1.03)
+- 1,001-2,500 qty: 2.5% spoilage (×1.025)
 - 2,501+ qty: 2% spoilage (×1.02)
+
+SHOP MINIMUM:
+- ALL quotes must be at least $75.00
+- If calculated quote < $75, set quote = $75 and note: "Shop minimum applied"
 
 ENVELOPES:
 - ALL envelopes print 1-up (one per impression)
@@ -289,7 +339,7 @@ ENVELOPES:
 BOOKLETS:
 - Cover: 1 sheet per booklet (4/4)
 - Text: (Total_pages - 4) ÷ 2 sheets per booklet
-- Finishing: StitchLiner $12.50 + (Qty × 1.03 × $0.0336)
+- Finishing: Use page-count-specific rates from table above
 
 === OUTPUT FORMAT ===
 
