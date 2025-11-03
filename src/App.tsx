@@ -118,7 +118,7 @@ export default function App() {
       const stream = await client.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 8192,
-        betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
+        betas: ['skills-2025-10-02'],
         container: {
           skills: [
             {
@@ -130,8 +130,8 @@ export default function App() {
         },
         tools: [
           {
-            type: 'code_execution_20250825',
-            name: 'code_execution'
+            type: 'bash_20250124',
+            name: 'bash'
           }
         ],
         system: `You are chatMPA, an AI assistant specialized in commercial printing and direct mail operations for Mail Processing Associates (MPA). You have access to advanced skills for:
