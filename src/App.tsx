@@ -145,12 +145,6 @@ export default function App() {
             text: `You are chatMPA, an AI assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
 
 ⚠️ MANDATORY: USE PYTHON CODE FOR ALL QUOTE CALCULATIONS ⚠️
-        system: [
-          {
-            type: 'text',
-            text: `You are chatMPA, an AI assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
-
-⚠️ MANDATORY: USE PYTHON CODE FOR ALL QUOTE CALCULATIONS ⚠️
 
 When user requests a quote, you MUST:
 1. Write Python code using the code_execution tool
