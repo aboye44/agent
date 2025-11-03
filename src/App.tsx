@@ -159,6 +159,28 @@ total_cost = paper_cost + click_cost
 
 print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
 print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
+
+# === FOLDING (for brochures) ===
+# Add folding if product requires it (trifold, bifold, etc.)
+needs_folding = False  # Set to True for brochures
+if needs_folding:
+    if qty <= 1000:
+        fold_rate = 0.025
+        fold_setup = 20
+    elif qty <= 5000:
+        fold_rate = 0.020
+        fold_setup = 25
+    elif qty <= 10000:
+        fold_rate = 0.015
+        fold_setup = 30
+    else:
+        fold_rate = 0.012
+        fold_setup = 35
+    
+    folding_cost = fold_setup + (qty * fold_rate)
+    total_cost += folding_cost
+    print(f"Folding: \${folding_cost:.2f} (\${folding_cost/qty:.4f}/pc)")
+
 print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
 # === PRICING MULTIPLIER ===
@@ -271,6 +293,26 @@ BOOKLET FINISHING COSTS (based on October 2025 competitive analysis):
 BOOKLET FINISHING EXAMPLE (1000 × 16-page):
 finishing_cost = 25 + (1000 × 1.03 × 0.015) = $40.45
 
+=== FOLDING COSTS (MBO High-Speed Automated Folder) ===
+
+WHEN TO APPLY FOLDING:
+- Any product described as "brochure", "trifold", "bifold", or "fold"
+- Flyers that need folding (e.g., "fold to 8.5×11")
+- NEVER apply to booklets (saddle-stitching already includes the fold)
+
+MBO FOLDER RATES (based on volume):
+- 1-1,000: $0.025/pc + $20 setup
+- 1,001-5,000: $0.020/pc + $25 setup  
+- 5,001-10,000: $0.015/pc + $30 setup
+- 10,001+: $0.012/pc + $35 setup
+
+FOLDING CALCULATION EXAMPLE (5,000 trifold brochures):
+fold_setup = 25
+fold_rate = 0.020
+folding_cost = 25 + (5000 × 0.020) = $125.00 ($0.025/pc including setup)
+
+IMPORTANT: Add folding cost to total_cost BEFORE applying multiplier
+
 === DESIGN SERVICES ===
 
 DESIGN RATE: $75/hour
@@ -355,6 +397,7 @@ Production:
 Cost:
 * Paper: $31.71 ($0.0317/pc)
 * Clicks: $21.47 ($0.0215/pc)
+* Folding: $125.00 ($0.0250/pc) [if brochure/trifold/bifold]
 * TOTAL COST: $53.18 ($0.0532/pc)
 
 QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
