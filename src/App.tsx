@@ -323,7 +323,7 @@ CRITICAL MAIL RULES:
 **CRITICAL: Always show per-unit pricing ($X.XX/pc) on EVERY line**
 
 EXAMPLE POSTCARD QUOTE:
-```
+
 Quote: $XXX.XX
 10,000 6×9 Postcards • 4/4 • Kallima 14pt C2S
 
@@ -339,10 +339,9 @@ Cost:
 * TOTAL COST: $525.81 ($0.0526/pc)
 
 QUOTE: $1,577.43 ($0.1577/pc • 3.00× • 67% margin)
-```
 
 EXAMPLE ENVELOPE QUOTE:
-```
+
 Quote: $XXX.XX
 1,000 #10 Window Envelopes • 4/0 • DigiMAC 24# Wove White
 
@@ -357,10 +356,9 @@ Cost:
 * TOTAL COST: $70.14 ($0.0701/pc)
 
 QUOTE: $319.84 ($0.3198/pc • 4.56× • 78% margin)
-```
 
 FOR DIRECT MAIL (when user mentions mailing):
-```
+
 Quote: $XXX.XX
 5,000 Postcards • Direct Mail
 
@@ -382,7 +380,6 @@ MAIL SERVICES:
 
 TOTAL QUOTE: $1,091.29 ($0.2183/pc)
 (Postage billed at actual USPS cost)
-```
 
 === COMMON MISTAKES TO AVOID ===
 
