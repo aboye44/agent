@@ -75,6 +75,7 @@ export default function App() {
 
     setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
+    const currentFiles = [...uploadedFiles]; // Save files before clearing
     setInput('');
     setUploadedFiles([]);
     setIsLoading(true);
@@ -103,10 +104,52 @@ export default function App() {
         content: currentInput
       });
 
+      // ===== UPLOAD FILES TO ANTHROPIC IF PRESENT =====
+      const uploadedFileIds = [];
+      if (currentFiles.length > 0) {
+        for (const file of currentFiles) {
+          try {
+            const uploadedFile = await client.beta.files.upload(file, {
+              betas: ['files-api-2025-04-14']
+            });
+            uploadedFileIds.push(uploadedFile.id);
+          } catch (err) {
+            console.error('File upload error:', err);
+          }
+        }
+      }
+
+      // ===== BUILD MESSAGE CONTENT WITH FILES =====
+      const messageContent = [];
+      
+      // Add uploaded files as document blocks
+      for (const fileId of uploadedFileIds) {
+        messageContent.push({
+          type: 'document',
+          source: {
+            type: 'file',
+            file_id: fileId
+          }
+        });
+      }
+      
+      // Add text content
+      if (currentInput.trim()) {
+        messageContent.push({
+          type: 'text',
+          text: currentInput
+        });
+      }
+
+      // Update the message with proper content structure
+      if (messageContent.length > 0) {
+        recentMessages[recentMessages.length - 1].content = messageContent;
+      }
+
       // ===== DETECT IF MAIL LIST CLEANING IS NEEDED =====
       const isMailListRequest = (
         /clean|mail.?list|mailing.?list|address|standardize|process.?list/i.test(currentInput) &&
-        uploadedFiles.some(f => f.name.match(/\.(csv|xlsx|xls)$/i))
+        currentFiles.some(f => f.name.match(/\.(csv|xlsx|xls)$/i))
       );
 
       // ===== BUILD CONTAINER CONFIG FOR SKILLS =====
