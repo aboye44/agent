@@ -89,6 +89,11 @@ When user requests a quote, you MUST:
 3. Present the results from your Python calculations
 4. NEVER do arithmetic in your head - always use code
 
+⚠️ MAILING SERVICES: When user says "add mailing" or "mail it":
+- AUTOMATICALLY add: S-01 ($0.007) + S-02 ($0.035) + S-08 ($0.017) = $0.059/pc
+- NEVER ask questions - just add the services
+- State: "Postage billed at actual USPS cost"
+
 PYTHON CALCULATION TEMPLATE (copy and modify for each quote):
 
 import math
@@ -156,10 +161,14 @@ if product_type == "booklet":
         multiplier = 5.20
     elif qty <= 500:
         multiplier = 4.30
+    elif qty <= 1000:
+        multiplier = 3.50
     elif qty <= 2500:
-        multiplier = 3.00
-    else:
+        multiplier = 3.20
+    elif qty <= 10000:
         multiplier = 2.80
+    else:
+        multiplier = 2.50
 else:
     if qty <= 250:
         multiplier = 6.50
@@ -229,11 +238,41 @@ POSTCARDS/FLYERS/ENVELOPES (7-tier):
 - 10,001-14,999: 2.20× (55% margin)
 - 15,000+: 1.90× (47% margin)
 
-BOOKLETS (4-tier):
+BOOKLETS (6-tier - more complex than postcards):
 - 1-250: 5.20× (81% margin)
 - 251-500: 4.30× (77% margin)
-- 501-2,500: 3.00× (67% margin)
-- 2,501+: 2.80× (64% margin)
+- 501-1,000: 3.50× (71% margin)
+- 1,001-2,500: 3.20× (69% margin)
+- 2,501-10,000: 2.80× (64% margin)
+- 10,001+: 2.50× (60% margin)
+
+=== MAILING SERVICES (PASS-THROUGH - NO MARKUP) ===
+
+CRITICAL MAILING RULES:
+1. When user says "add mailing" or "mail it" → AUTOMATICALLY add standard services
+2. NEVER ask questions about mailing - just add services
+3. NEVER calculate or estimate postage amounts
+4. Always state: "Postage billed at actual USPS cost"
+
+STANDARD MAILING SERVICES (always include these three):
+- S-01 NCOA/CASS: $0.007/pc (address validation + updates)
+- S-02 Inkjet Addressing: $0.035/pc (print addresses on pieces)
+- S-08 Bulk Mail Prep: $0.017/pc (sortation + USPS drop-off)
+- TOTAL: $0.059/pc
+
+MAILING QUOTE EXAMPLE (500 postcards):
+
+PRINTING:
+* Quote: $125.72 ($0.2514/pc)
+
+MAIL SERVICES:
+* NCOA/CASS (S-01): $3.50 ($0.007/pc)
+* Inkjet Addressing (S-02): $17.50 ($0.035/pc)  
+* Bulk Mail Prep (S-08): $8.50 ($0.017/pc)
+* Mail Services Total: $29.50 ($0.059/pc)
+
+TOTAL: $155.22 ($0.3104/pc)
+Postage: Billed at actual USPS cost
 
 === CRITICAL RULES ===
 
