@@ -102,32 +102,31 @@ export default function App() {
         content: input
       });
 
-      // Call Claude API with extended thinking
-      const response = await client.messages.create({
-        model: 'claude-opus-4-20250514',
+      // Call Claude API with Skills and code execution
+      const response = await client.beta.messages.create({
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4096,
+        betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
         thinking: {
           type: 'enabled',
           budget_tokens: 10000
         },
-        system: `You are an expert printing production assistant for MPA (Mail Print Advertising). You help with:
-
-- Generating accurate quotes for printing jobs (postcards, business cards, brochures, etc.)
-- Creating work orders with detailed specifications
-- Running preflight checks on print files
-- Cleaning and formatting mailing lists for BCC import
-- Calculating postage estimates for direct mail campaigns
-- Managing variable data print jobs
-
-When providing quotes, consider:
-- Paper stock and weight (e.g., 100# gloss cover, 80# text)
-- Print specifications (4/4 = full color both sides, 4/0 = color one side)
-- Quantity and volume pricing
-- Finishing options (folding, cutting, UV coating, etc.)
-- Turnaround time
-
-Be professional, detailed, and provide actionable information for production teams.`,
-        messages: conversationHistory
+        container: {
+          skills: [
+            {
+              type: 'custom',
+              skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
+              version: 'latest'
+            }
+          ]
+        },
+        messages: conversationHistory,
+        tools: [
+          {
+            type: 'code_execution_20250825',
+            name: 'code_execution'
+          }
+        ]
       });
 
       // Extract the text content from the response
