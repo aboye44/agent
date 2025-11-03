@@ -118,7 +118,6 @@ export default function App() {
       const stream = await client.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 8192,
-        betas: ['skills-2025-10-02'],
         skills: [
           {
             type: 'custom',
