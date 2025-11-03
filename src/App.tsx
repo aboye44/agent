@@ -146,9 +146,9 @@ else:
 
 total_cost = paper_cost + click_cost
 
-print(f"Paper: \\${paper_cost:.2f} (\\${paper_cost/qty:.4f}/pc)")
-print(f"Clicks: \\${click_cost:.2f} (\\${click_cost/qty:.4f}/pc)")
-print(f"Total Cost: \\${total_cost:.2f} (\\${total_cost/qty:.4f}/pc)")
+print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
+print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
+print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
 # === PRICING MULTIPLIER ===
 if product_type == "booklet":
@@ -180,9 +180,9 @@ quote = total_cost * multiplier
 margin_pct = ((quote - total_cost) / quote) * 100
 
 print(f"Multiplier: {multiplier}×")
-print(f"QUOTE: \\${quote:.2f} (\\${quote/qty:.4f}/pc)")
+print(f"QUOTE: \${quote:.2f} (\${quote/qty:.4f}/pc)")
 print(f"Margin: {margin_pct:.0f}%")
-print(f"\\nVerification: \\${total_cost:.2f} × {multiplier} = \\${quote:.2f}")
+print(f"\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
 
 === EQUIPMENT & CLICK COSTS ===
 
