@@ -90,8 +90,10 @@ export default function App() {
         dangerouslyAllowBrowser: true
       });
 
-      // Build conversation history for context
-      const conversationHistory = messages.map(msg => ({
+      // Build minimal conversation history (only last exchange for context)
+      // This speeds up response time significantly
+      const recentMessages = messages.slice(-2); // Only last 2 messages (1 exchange)
+      const conversationHistory = recentMessages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
@@ -102,10 +104,19 @@ export default function App() {
         content: input
       });
 
-      // Call Claude API with Skills and code execution
-      const response = await client.beta.messages.create({
+      // Create placeholder message for streaming
+      const placeholderMessage = {
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        actions: ['copy', 'export']
+      };
+      setMessages(prev => [...prev, placeholderMessage]);
+
+      // Call Claude API with Skills and code execution using streaming
+      const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 8192,
+        max_tokens: 4096,
         betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
         container: {
           skills: [
@@ -125,22 +136,21 @@ export default function App() {
         ]
       });
 
-      // Extract the text content from the response
+      // Stream the response and update UI in real-time
       let responseText = '';
-      for (const block of response.content) {
-        if (block.type === 'text') {
-          responseText += block.text;
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          responseText += chunk.delta.text;
+          setMessages(prev => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              ...newMessages[newMessages.length - 1],
+              content: responseText
+            };
+            return newMessages;
+          });
         }
       }
-
-      const assistantMessage = {
-        role: 'assistant',
-        content: responseText || 'No response generated.',
-        timestamp: new Date().toISOString(),
-        actions: ['copy', 'export']
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
     } catch (err) {
       console.error('Error:', err);
       const errorMessage = {
