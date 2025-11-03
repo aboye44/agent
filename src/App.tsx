@@ -105,12 +105,8 @@ export default function App() {
       // Call Claude API with Skills and code execution
       const response = await client.beta.messages.create({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 16384,
+        max_tokens: 8192,
         betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
-        thinking: {
-          type: 'enabled',
-          budget_tokens: 10000
-        },
         container: {
           skills: [
             {
