@@ -211,9 +211,9 @@ else:
 total_cost = paper_cost + click_cost
 cost_per_piece = total_cost / qty
 
-print(f"Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
-print(f"Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
-print(f"Total Cost: ${total_cost:.2f} (${cost_per_piece:.4f}/pc)")
+print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
+print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
+print(f"Total Cost: \${total_cost:.2f} (\${cost_per_piece:.4f}/pc)")
 
 # === PRICING MULTIPLIER ===
 if product_type == "booklet":
@@ -248,11 +248,11 @@ quote_per_piece = quote / qty
 margin_pct = ((quote - total_cost) / quote) * 100
 
 print(f"Multiplier: {multiplier}× (qty {qty})")
-print(f"QUOTE: ${quote:.2f} (${quote_per_piece:.4f}/pc)")
+print(f"QUOTE: \${quote:.2f} (\${quote_per_piece:.4f}/pc)")
 print(f"Margin: {margin_pct:.0f}%")
 
 # VERIFICATION
-print(f"\\n✓ Verification: ${total_cost:.2f} × {multiplier} = ${quote:.2f}")
+print(f"\\n✓ Verification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
 print(f"✓ Quote > Cost: {quote > total_cost}")
 
 After running the code, present the results in a clean format to the user.
@@ -282,10 +282,10 @@ multiplier = 2.20  # 10,001-14,999 tier
 quote = total_cost * multiplier
 
 print(f"Envelopes: {total_envelopes} (includes 2% spoilage)")
-print(f"Envelope cost: ${envelope_cost_total:.2f}")
-print(f"Clicks: ${click_cost:.2f}")
-print(f"Total Cost: ${total_cost:.2f}")
-print(f"Quote: ${quote:.2f} (${quote/qty:.4f}/pc • {multiplier}×)")
+print(f"Envelope cost: \${envelope_cost_total:.2f}")
+print(f"Clicks: \${click_cost:.2f}")
+print(f"Total Cost: \${total_cost:.2f}")
+print(f"Quote: \${quote:.2f} (\${quote/qty:.4f}/pc • {multiplier}×)")
 
 BOOKLET CALCULATION EXAMPLE:
 
@@ -325,11 +325,11 @@ quote = total_cost * multiplier
 
 print(f"Cover sheets: {cover_sheets}")
 print(f"Text sheets: {total_text_sheets}")
-print(f"Cover: ${cover_paper + cover_clicks:.2f}")
-print(f"Text: ${text_paper + text_clicks:.2f}")
-print(f"Finishing: ${finishing:.2f}")
-print(f"Total Cost: ${total_cost:.2f}")
-print(f"Quote: ${quote:.2f} ({multiplier}×)")
+print(f"Cover: \${cover_paper + cover_clicks:.2f}")
+print(f"Text: \${text_paper + text_clicks:.2f}")
+print(f"Finishing: \${finishing:.2f}")
+print(f"Total Cost: \${total_cost:.2f}")
+print(f"Quote: \${quote:.2f} ({multiplier}×)")
 
 BEFORE CALCULATING ANY QUOTE - VERIFY THESE:
 1. What is the quantity? → Determine spoilage tier FIRST
@@ -774,7 +774,7 @@ COST CALCULATION:
       console.error('Error:', err);
       const errorMessage = {
         role: 'assistant',
-        content: `⚠️ Error: ${err.message || 'Unable to process your request. Please try again.'}`,
+        content: `⚠️ Error: \${err.message || 'Unable to process your request. Please try again.'}`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -904,22 +904,22 @@ COST CALCULATION:
           {messages.map((msg, idx) => (
             <div
               key={msg.id || idx}
-              className={`mb-8 ${msg.role === 'user' ? 'flex justify-end' : ''}`}
+              className={`mb-8 \${msg.role === 'user' ? 'flex justify-end' : ''}`}
             >
-              <div className={`max-w-4xl ${msg.role === 'user' ? 'ml-auto' : ''}`}>
-                <div className={`flex items-start gap-3.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 ${
+              <div className={`max-w-4xl \${msg.role === 'user' ? 'ml-auto' : ''}`}>
+                <div className={`flex items-start gap-3.5 \${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 \${
                     msg.role === 'user' 
                       ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25' 
                       : 'bg-neutral-900 border border-neutral-800'
                   }`}>
-                    <span className={`text-xs font-semibold ${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
+                    <span className={`text-xs font-semibold \${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
                       {msg.role === 'user' ? 'YOU' : 'AI'}
                     </span>
                   </div>
-                  <div className={`flex-1 space-y-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`flex-1 space-y-3 \${msg.role === 'user' ? 'text-right' : ''}`}>
                     {msg.files && msg.files.length > 0 && (
-                      <div className={`flex flex-wrap gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                      <div className={`flex flex-wrap gap-2 \${msg.role === 'user' ? 'justify-end' : ''}`}>
                         {msg.files.map((file, i) => (
                           <div key={i} className="inline-flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-xs text-neutral-400">
                             <FileText className="w-3.5 h-3.5" />
@@ -928,7 +928,7 @@ COST CALCULATION:
                         ))}
                       </div>
                     )}
-                    <div className={`group relative ${
+                    <div className={`group relative \${
                       msg.role === 'user' 
                         ? 'inline-block bg-gradient-to-br from-blue-500 to-blue-600 px-5 py-3.5 rounded-2xl shadow-lg shadow-blue-500/20 text-white' 
                         : 'text-neutral-200'
@@ -1012,7 +1012,7 @@ COST CALCULATION:
           )}
           
           <div 
-            className={`relative transition-all duration-200 ${isDragging ? 'scale-[0.98]' : ''}`}
+            className={`relative transition-all duration-200 \${isDragging ? 'scale-[0.98]' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
