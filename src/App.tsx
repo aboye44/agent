@@ -367,74 +367,95 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
   };
 
   return (
-    <div className="flex flex-col h-screen bg-neutral-950">
+    <div className="flex flex-col h-screen bg-gradient-to-b from-neutral-950 to-neutral-900">
       {/* Header */}
-      <div className="border-b border-neutral-800/60 bg-neutral-900/50 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
+      <div className="border-b border-neutral-800/50 bg-neutral-950/80 backdrop-blur-xl sticky top-0 z-10">
+        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-xl"></div>
-              <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full"></div>
+              <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
                 <Sparkles className="w-5 h-5 text-white" strokeWidth={2.5} />
               </div>
             </div>
             <div>
-              <h1 className="text-base font-semibold text-neutral-100 tracking-tight">chatMPA</h1>
-              <p className="text-xs text-neutral-500">MPA Quoting Agent • Instant Pricing ⚡</p>
+              <h1 className="text-lg font-bold text-white">chatMPA</h1>
+              <p className="text-xs text-neutral-400">Instant Pricing Agent</p>
             </div>
           </div>
           <button
             onClick={clearHistory}
-            className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 rounded-lg transition-all duration-200"
+            className="px-4 py-2 text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800/60 rounded-xl transition-all"
           >
-            Clear History
+            Clear Chat
           </button>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <div className="max-w-5xl mx-auto">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center max-w-3xl space-y-8">
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center max-w-2xl space-y-8">
                 <div className="relative inline-block">
-                  <div className="absolute inset-0 bg-blue-500/10 blur-2xl rounded-2xl"></div>
-                  <div className="relative w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-neutral-900 to-neutral-800 border border-neutral-800 flex items-center justify-center shadow-2xl">
-                    <Sparkles className="w-9 h-9 text-blue-500" strokeWidth={1.5} />
+                  <div className="absolute inset-0 bg-blue-500/20 blur-3xl"></div>
+                  <div className="relative w-24 h-24 mx-auto rounded-3xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-2xl">
+                    <Sparkles className="w-12 h-12 text-white" strokeWidth={2} />
                   </div>
                 </div>
                 
-                <div className="space-y-3">
-                  <h2 className="text-3xl font-bold text-neutral-100 tracking-tight">
+                <div className="space-y-4">
+                  <h2 className="text-4xl font-bold text-white">
                     MPA Quoting Agent
                   </h2>
-                  <p className="text-neutral-400 text-base">
-                    Instant pricing for postcards, flyers, booklets & envelopes
+                  <p className="text-lg text-neutral-400">
+                    Get instant pricing for postcards, flyers, booklets & envelopes
                   </p>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="grid grid-cols-1 gap-3 mt-8">
                   <button
                     onClick={() => setInput('quote 500 6x9 postcards 4/4 100# gloss cover')}
-                    className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
                   >
-                    <span className="text-blue-500 mr-2">→</span>
-                    500 postcards quote ⚡
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                        <span className="text-xl">📮</span>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">500 Postcards</div>
+                        <div className="text-sm text-neutral-500">6×9, full color, gloss cover</div>
+                      </div>
+                    </div>
                   </button>
                   <button
                     onClick={() => setInput('quote 10k #10 envelopes 1/0')}
-                    className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
                   >
-                    <span className="text-blue-500 mr-2">→</span>
-                    10,000 envelopes quote ⚡
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                        <span className="text-xl">✉️</span>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">10,000 Envelopes</div>
+                        <div className="text-sm text-neutral-500">#10 standard, one-color</div>
+                      </div>
+                    </div>
                   </button>
                   <button
-                    onClick={() => setInput('quote 5k 12-page booklets 4/4 cover 4/4 text')}
-                    className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    onClick={() => setInput('quote 5k 16-page booklets 4/4 throughout')}
+                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
                   >
-                    <span className="text-blue-500 mr-2">→</span>
-                    5,000 booklets quote ⚡
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                        <span className="text-xl">📚</span>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">5,000 Booklets</div>
+                        <div className="text-sm text-neutral-500">16 pages, full color, saddle-stitched</div>
+                      </div>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -444,48 +465,42 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
           {messages.map((msg, idx) => (
             <div
               key={msg.id || idx}
-              className={`mb-8 ${msg.role === 'user' ? 'flex justify-end' : ''}`}
+              className={`mb-6 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-4xl ${msg.role === 'user' ? 'ml-auto' : ''}`}>
-                <div className={`flex items-start gap-3.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              <div className={`flex gap-4 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                {/* Avatar */}
+                <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                  msg.role === 'user' 
+                    ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
+                    : 'bg-neutral-800 border border-neutral-700'
+                }`}>
+                  <span className="text-sm font-bold text-white">
+                    {msg.role === 'user' ? 'Y' : 'AI'}
+                  </span>
+                </div>
+                
+                {/* Message Content */}
+                <div className="flex-1 space-y-2">
+                  <div className={`rounded-3xl px-6 py-4 ${
                     msg.role === 'user' 
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25' 
-                      : 'bg-neutral-900 border border-neutral-800'
+                      ? 'bg-blue-600 text-white' 
+                      : 'bg-neutral-900 border border-neutral-800 text-neutral-100'
                   }`}>
-                    <span className={`text-xs font-semibold ${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
-                      {msg.role === 'user' ? 'YOU' : 'AI'}
-                    </span>
-                  </div>
-                  <div className={`flex-1 space-y-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                    <div className={`group relative ${
-                      msg.role === 'user' 
-                        ? 'inline-block bg-gradient-to-br from-blue-500 to-blue-600 px-5 py-3.5 rounded-2xl shadow-lg shadow-blue-500/20 text-white' 
-                        : 'text-neutral-200'
-                    }`} style={{ lineHeight: '1.7' }}>
-                      {msg.role === 'assistant' && (
-                        <div className="absolute -left-1 top-0 w-0.5 h-full bg-gradient-to-b from-blue-500/40 to-transparent rounded-full"></div>
-                      )}
-                      <div className={msg.role === 'assistant' ? 'pl-3' : ''}>
-                        {msg.content.split('\n').map((line, i) => (
-                          <p key={i} className={msg.role === 'user' ? 'mb-0' : 'mb-3 last:mb-0'}>
-                            {line || '\u00A0'}
-                          </p>
-                        ))}
-                      </div>
+                    <div className="text-base leading-relaxed whitespace-pre-wrap">
+                      {msg.content}
                     </div>
-                    {msg.role === 'assistant' && (
-                      <div className="pl-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => copyToClipboard(msg.content)}
-                          className="px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all flex items-center gap-1.5"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                          Copy
-                        </button>
-                      </div>
-                    )}
                   </div>
+                  
+                  {/* Copy button for AI messages */}
+                  {msg.role === 'assistant' && (
+                    <button
+                      onClick={() => copyToClipboard(msg.content)}
+                      className="ml-2 px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all flex items-center gap-1.5"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Copy
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -494,32 +509,37 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
         </div>
       </div>
 
-      {/* Input */}
-      <div className="border-t border-neutral-800/60 bg-neutral-900/50 px-6 py-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-end gap-2.5">
-            <div className="flex-1 relative">
-              <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Quote 500 6x9 postcards 4/4..."
-                className="w-full px-5 py-3.5 bg-neutral-900 border border-neutral-800/60 rounded-xl text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-neutral-700 resize-none transition-all"
-                rows={1}
-                disabled={isLoading}
-              />
-            </div>
+      {/* Input Area */}
+      <div className="border-t border-neutral-800/50 bg-neutral-950/80 backdrop-blur-xl sticky bottom-0">
+        <div className="max-w-4xl mx-auto px-6 py-6">
+          <div className="relative flex items-end gap-3 bg-neutral-900 rounded-3xl border border-neutral-800 p-2 focus-within:border-blue-500/50 transition-all">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Quote 500 postcards, 10k envelopes, booklets..."
+              className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none resize-none text-base"
+              rows={1}
+              disabled={isLoading}
+              style={{
+                minHeight: '44px',
+                maxHeight: '200px'
+              }}
+            />
             <button
               onClick={handleSubmit}
               disabled={isLoading || !input.trim()}
-              className="px-5 py-3.5 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-xl hover:shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 font-medium text-sm"
+              className="flex-shrink-0 w-11 h-11 bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl hover:shadow-lg hover:shadow-blue-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              <Send className="w-4 h-4" />
-              {isLoading ? 'Quoting...' : 'Get Quote'}
+              {isLoading ? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
             </button>
           </div>
-          <p className="text-xs text-neutral-500 mt-2.5 text-center">
-            Try: "quote 1000 postcards" • "price 5k envelopes" • "10k booklets 16 pages"
+          <p className="text-xs text-neutral-500 mt-3 text-center">
+            Try: "quote 1000 postcards 6x9" • "5k envelopes" • "500 booklets 16 pages"
           </p>
         </div>
       </div>
