@@ -119,15 +119,13 @@ export default function App() {
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 8192,
         betas: ['skills-2025-10-02'],
-        container: {
-          skills: [
-            {
-              type: 'custom',
-              skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
-              version: 'latest'
-            }
-          ]
-        },
+        skills: [
+          {
+            type: 'custom',
+            skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
+            version: 'latest'
+          }
+        ],
         tools: [
           {
             type: 'bash_20250124',
