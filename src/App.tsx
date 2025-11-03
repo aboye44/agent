@@ -39,6 +39,7 @@ export default function App() {
 
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files);
+    console.log('Files selected:', files.map(f => ({ name: f.name, size: f.size, type: f.type })));
     setUploadedFiles(prev => [...prev, ...files]);
   };
 
@@ -107,17 +108,21 @@ export default function App() {
       // ===== UPLOAD FILES TO ANTHROPIC IF PRESENT =====
       const uploadedFileIds = [];
       if (currentFiles.length > 0) {
+        console.log('Uploading files to Anthropic:', currentFiles.length);
         for (const file of currentFiles) {
           try {
+            console.log('Uploading file:', file.name, file.size, 'bytes');
             const uploadedFile = await client.beta.files.upload(file, {
               betas: ['files-api-2025-04-14']
             });
+            console.log('File uploaded successfully:', uploadedFile.id);
             uploadedFileIds.push(uploadedFile.id);
           } catch (err) {
             console.error('File upload error:', err);
           }
         }
       }
+      console.log('Total files uploaded:', uploadedFileIds.length);
 
       // ===== BUILD MESSAGE CONTENT WITH FILES =====
       const messageContent = [];
