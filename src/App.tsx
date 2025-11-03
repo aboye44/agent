@@ -113,7 +113,7 @@ export default function App() {
       const containerConfig = isMailListRequest ? {
         skills: [{
           type: 'custom',
-          skill_id: 'mpa-mail-list-processor',
+          skill_id: 'skill_01BudEX64Q8NCQ4VpJYJNknh',
           version: 'latest'
         }]
       } : {};
@@ -774,7 +774,7 @@ COST CALCULATION:
       console.error('Error:', err);
       const errorMessage = {
         role: 'assistant',
-        content: `⚠️ Error: \${err.message || 'Unable to process your request. Please try again.'}`,
+        content: `⚠️ Error: ${err.message || 'Unable to process your request. Please try again.'}`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -904,22 +904,22 @@ COST CALCULATION:
           {messages.map((msg, idx) => (
             <div
               key={msg.id || idx}
-              className={`mb-8 \${msg.role === 'user' ? 'flex justify-end' : ''}`}
+              className={`mb-8 ${msg.role === 'user' ? 'flex justify-end' : ''}`}
             >
-              <div className={`max-w-4xl \${msg.role === 'user' ? 'ml-auto' : ''}`}>
-                <div className={`flex items-start gap-3.5 \${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 \${
+              <div className={`max-w-4xl ${msg.role === 'user' ? 'ml-auto' : ''}`}>
+                <div className={`flex items-start gap-3.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 ${
                     msg.role === 'user' 
                       ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25' 
                       : 'bg-neutral-900 border border-neutral-800'
                   }`}>
-                    <span className={`text-xs font-semibold \${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
+                    <span className={`text-xs font-semibold ${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
                       {msg.role === 'user' ? 'YOU' : 'AI'}
                     </span>
                   </div>
-                  <div className={`flex-1 space-y-3 \${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div className={`flex-1 space-y-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
                     {msg.files && msg.files.length > 0 && (
-                      <div className={`flex flex-wrap gap-2 \${msg.role === 'user' ? 'justify-end' : ''}`}>
+                      <div className={`flex flex-wrap gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
                         {msg.files.map((file, i) => (
                           <div key={i} className="inline-flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-xs text-neutral-400">
                             <FileText className="w-3.5 h-3.5" />
@@ -928,7 +928,7 @@ COST CALCULATION:
                         ))}
                       </div>
                     )}
-                    <div className={`group relative \${
+                    <div className={`group relative ${
                       msg.role === 'user' 
                         ? 'inline-block bg-gradient-to-br from-blue-500 to-blue-600 px-5 py-3.5 rounded-2xl shadow-lg shadow-blue-500/20 text-white' 
                         : 'text-neutral-200'
@@ -1012,7 +1012,7 @@ COST CALCULATION:
           )}
           
           <div 
-            className={`relative transition-all duration-200 \${isDragging ? 'scale-[0.98]' : ''}`}
+            className={`relative transition-all duration-200 ${isDragging ? 'scale-[0.98]' : ''}`}
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
