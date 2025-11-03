@@ -136,18 +136,19 @@ Always be concise but thorough. If you need more information to complete a task,
       // Update UI in real-time as response streams in
       let fullResponse = '';
       
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text') {
-          fullResponse += event.delta.text;
-          
-          // Update the message in real-time
-          setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
-              ? { ...msg, content: fullResponse }
-              : msg
-          ));
-        }
-      }
+      stream.on('text', (text) => {
+        fullResponse += text;
+        
+        // Update the message in real-time
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { ...msg, content: fullResponse }
+            : msg
+        ));
+      });
+
+      // Wait for stream to complete
+      await stream.finalMessage();
 
     } catch (err) {
       console.error('Error:', err);
