@@ -115,34 +115,28 @@ export default function App() {
       }]);
 
       // Stream response from Claude with Skills enabled
-      const stream = await client.messages.stream({
+      const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 8192,
-        skills: [
-          {
-            type: 'custom',
-            skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
-            version: 'latest'
-          }
-        ],
+        betas: ['code-execution-2025-08-25', 'skills-2025-10-02'],
+        container: {
+          skills: [
+            {
+              type: 'custom',
+              skill_id: 'skill_017itBMGuP8s5xPH2K683nDy',
+              version: 'latest'
+            }
+          ]
+        },
         tools: [
           {
-            type: 'bash_20250124',
-            name: 'bash'
+            type: 'code_execution_20250825',
+            name: 'code_execution'
           }
         ],
-        system: `You are chatMPA, an AI assistant specialized in commercial printing and direct mail operations for Mail Processing Associates (MPA). You have access to advanced skills for:
+        system: `You are chatMPA, an AI assistant specialized in commercial printing and direct mail operations for Mail Processing Associates (MPA). You have access to advanced skills for quoting, work orders, preflight checks, mailing list processing, and postage estimation.
 
-- Quoting print jobs with accurate pricing
-- Creating detailed work orders
-- Performing preflight checks on files
-- Processing and cleaning mailing lists
-- Estimating postage costs
-- Handling variable data projects
-
-You provide clear, professional, and actionable responses. When generating quotes or work orders, use structured formats. When cleaning mailing lists, follow USPS standards and BCC Bulk Mailer requirements.
-
-Always be concise but thorough. If you need more information to complete a task, ask specific questions.`,
+Always provide clear, professional responses. Use structured formats for quotes and work orders. Follow USPS standards for mailing operations.`,
         messages: recentMessages
       });
 
