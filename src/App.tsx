@@ -63,47 +63,71 @@ export default function App() {
     setUploadedFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (currentInput = input) => {
-    if (!currentInput.trim() && uploadedFiles.length === 0) return;
+  const handleSubmit = async () => {
+    if ((!input.trim() && uploadedFiles.length === 0) || isLoading) return;
 
-    setIsLoading(true);
-    const userMessage = { role: 'user', content: currentInput };
+    const userMessage = {
+      role: 'user',
+      content: input,
+      files: uploadedFiles.map(f => ({ name: f.name, type: f.type })),
+      timestamp: new Date().toISOString()
+    };
+
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
+    setUploadedFiles([]);
+    setIsLoading(true);
 
     try {
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        throw new Error('API key not found. Please add VITE_ANTHROPIC_API_KEY to your .env.local file.');
+      }
+
       const client = new Anthropic({
-        apiKey: import.meta.env.VITE_ANTHROPIC_API_KEY,
+        apiKey: apiKey,
         dangerouslyAllowBrowser: true
       });
 
-      // Build conversation history (last 10 messages)
-      const recentMessages = [...messages, userMessage].slice(-10).map(msg => ({
-        role: msg.role,
-        content: msg.content
-      }));
+      // Smart context detection - only use context if refining
+      const needsContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
+      
+      const recentMessages = needsContext 
+        ? messages.slice(-1).map(msg => ({ role: msg.role, content: msg.content }))
+        : [];
 
-      // ===== DETECT IF THIS IS A MAIL LIST CLEANING REQUEST =====
+      recentMessages.push({
+        role: 'user',
+        content: currentInput
+      });
+
+      // ===== DETECT IF MAIL LIST CLEANING IS NEEDED =====
       const isMailListRequest = (
         /clean|mail.?list|mailing.?list|address|standardize|process.?list/i.test(currentInput) &&
         uploadedFiles.some(f => f.name.match(/\.(csv|xlsx|xls)$/i))
       );
 
-      // ===== BUILD CONTAINER CONFIG =====
-      const containerConfig = {};
-      
-      if (isMailListRequest) {
-        // Use the mail list processor skill when relevant
-        containerConfig.skills = [
-          {
-            type: 'custom',  // Since you uploaded to Console, it's a custom skill
-            skill_id: 'mpa-mail-list-processor',  // This is the skill name from SKILL.md
-            version: 'latest'
-          }
-        ];
-      }
+      // ===== BUILD CONTAINER CONFIG FOR SKILLS =====
+      const containerConfig = isMailListRequest ? {
+        skills: [{
+          type: 'custom',
+          skill_id: 'mpa-mail-list-processor',
+          version: 'latest'
+        }]
+      } : {};
 
-      // ===== INLINE PRICING KNOWLEDGE (ALWAYS LOADED) =====
+      const assistantMessageId = Date.now();
+      setMessages(prev => [...prev, {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        actions: ['copy', 'export']
+      }]);
+
+      // INLINE ALL MPA KNOWLEDGE WITH CORRECT PRICING - NO FILE READS!
       const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4000,
@@ -511,228 +535,339 @@ COST CALCULATION:
       
       stream.on('text', (text) => {
         fullResponse += text;
-        setMessages(prev => {
-          const newMessages = [...prev];
-          if (newMessages[newMessages.length - 1]?.role === 'assistant') {
-            newMessages[newMessages.length - 1].content = fullResponse;
-          } else {
-            newMessages.push({ role: 'assistant', content: fullResponse });
-          }
-          return newMessages;
-        });
+        
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId
+            ? { ...msg, content: fullResponse }
+            : msg
+        ));
       });
 
-      await stream.done();
-      
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: `Error: ${error.message}` 
-      }]);
+      await stream.finalMessage();
+
+    } catch (err) {
+      console.error('Error:', err);
+      const errorMessage = {
+        role: 'assistant',
+        content: `⚠️ Error: ${err.message || 'Unable to process your request. Please try again.'}`,
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
-      setUploadedFiles([]);
     }
   };
 
   const clearHistory = () => {
-    setMessages([]);
-    localStorage.removeItem('chatmpa-history');
+    if (confirm('Clear all conversation history?')) {
+      setMessages([]);
+      localStorage.removeItem('chatmpa-history');
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
+  };
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text);
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="flex flex-col h-screen bg-neutral-950">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div className="border-b border-neutral-800/60 bg-neutral-900/50 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-blue-600 to-purple-600 p-2 rounded-xl shadow-lg">
-              <Sparkles className="w-6 h-6 text-white" />
+            <div className="relative">
+              <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-xl"></div>
+              <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                <Sparkles className="w-5 h-5 text-white" strokeWidth={2.5} />
+              </div>
             </div>
             <div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                chatMPA
-              </h1>
-              <p className="text-xs text-slate-500">AI Assistant • Mail Processing Associates</p>
+              <h1 className="text-base font-semibold text-neutral-100 tracking-tight">chatMPA</h1>
+              <p className="text-xs text-neutral-500">Production AI Agent • Ultra-Fast Inline Mode ⚡</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button className="p-2 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all">
+              <Settings className="w-4 h-4" />
+            </button>
             <button
               onClick={clearHistory}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              title="Clear history"
+              className="px-3 py-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/60 rounded-lg transition-all duration-200"
             >
-              <RefreshCw className="w-5 h-5 text-slate-600" />
+              Clear History
             </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Skills Bar */}
-      <div className="bg-white border-b border-slate-200 px-4 py-3">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
-            {skills.map((skill) => (
-              <button
-                key={skill.id}
-                onClick={() => setInput(`Help me ${skill.name.toLowerCase()}`)}
-                className={`
-                  flex items-center gap-2 px-4 py-2 rounded-lg border-2 
-                  transition-all whitespace-nowrap hover:scale-105 hover:shadow-md
-                  ${skill.color === 'blue' ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100' : ''}
-                  ${skill.color === 'green' ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : ''}
-                  ${skill.color === 'purple' ? 'border-purple-200 bg-purple-50 text-purple-700 hover:bg-purple-100' : ''}
-                  ${skill.color === 'orange' ? 'border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100' : ''}
-                  ${skill.color === 'pink' ? 'border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100' : ''}
-                  ${skill.color === 'teal' ? 'border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100' : ''}
-                `}
-              >
-                <skill.icon className="w-4 h-4" />
-                <span className="text-sm font-medium">{skill.name}</span>
-              </button>
-            ))}
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="max-w-5xl mx-auto space-y-6">
-          {messages.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="inline-flex p-4 bg-gradient-to-br from-blue-100 to-purple-100 rounded-2xl mb-4">
-                <Sparkles className="w-12 h-12 text-blue-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">
-                Welcome to chatMPA
-              </h2>
-              <p className="text-slate-600 mb-6">
-                Your AI-powered printing & direct mail assistant
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                  <Calculator className="w-8 h-8 text-blue-600 mb-2" />
-                  <h3 className="font-semibold text-slate-800 mb-1">Quick Quotes</h3>
-                  <p className="text-sm text-slate-600">Instant pricing for postcards, flyers, booklets & envelopes</p>
+      <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar">
+        <div className="max-w-5xl mx-auto">
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center max-w-3xl space-y-8">
+                <div className="relative inline-block">
+                  <div className="absolute inset-0 bg-blue-500/10 blur-2xl rounded-2xl"></div>
+                  <div className="relative w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-neutral-900 to-neutral-800 border border-neutral-800 flex items-center justify-center shadow-2xl">
+                    <Sparkles className="w-9 h-9 text-blue-500" strokeWidth={1.5} />
+                  </div>
                 </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                  <Database className="w-8 h-8 text-orange-600 mb-2" />
-                  <h3 className="font-semibold text-slate-800 mb-1">Clean Lists</h3>
-                  <p className="text-sm text-slate-600">Standardize mailing lists for BCC Bulk Mailer</p>
+                
+                <div className="space-y-3">
+                  <h2 className="text-3xl font-bold text-neutral-100 tracking-tight">
+                    MPA Production AI Agent
+                  </h2>
+                  <p className="text-neutral-400 text-base leading-relaxed max-w-2xl mx-auto">
+                    Instant quotes with complete MPA knowledge. Zero file reads, maximum speed.
+                  </p>
                 </div>
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-                  <Mail className="w-8 h-8 text-pink-600 mb-2" />
-                  <h3 className="font-semibold text-slate-800 mb-1">Direct Mail</h3>
-                  <p className="text-sm text-slate-600">Full-service pricing with mail prep & addressing</p>
+
+                <div className="space-y-4">
+                  <p className="text-xs text-neutral-500 font-semibold tracking-wide uppercase">Available Skills</p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {skills.map(skill => {
+                      const Icon = skill.icon;
+                      return (
+                        <div key={skill.id} className="flex flex-col items-center gap-2 p-4 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 transition-all">
+                          <div className="w-10 h-10 rounded-lg bg-neutral-800 flex items-center justify-center">
+                            <Icon className="w-5 h-5 text-blue-500" />
+                          </div>
+                          <span className="text-xs font-medium text-neutral-300">{skill.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-4">
+                  <p className="text-xs text-neutral-500 font-semibold tracking-wide uppercase">Try asking...</p>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setInput('Quote 10,000 6x9 postcards 4/4 100# gloss')}
+                      className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    >
+                      <span className="text-blue-500 mr-2">→</span>
+                      Quote 10k 6x9 postcards ⚡
+                    </button>
+                    <button
+                      onClick={() => setInput('2500 #10 window envelopes with 4/0 printing')}
+                      className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    >
+                      <span className="text-blue-500 mr-2">→</span>
+                      Envelope printing quote ⚡
+                    </button>
+                    <button
+                      onClick={() => setInput('1000 16-page saddle stitch booklets 8.5x11')}
+                      className="group w-full text-left px-5 py-3 rounded-xl bg-neutral-900/50 border border-neutral-800/60 hover:border-neutral-700 hover:bg-neutral-900 transition-all text-sm text-neutral-300 hover:text-neutral-100"
+                    >
+                      <span className="text-blue-500 mr-2">→</span>
+                      Booklet with finishing ⚡
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          ) : (
-            messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex gap-3 ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {message.role === 'assistant' && (
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center">
-                    <Sparkles className="w-5 h-5 text-white" />
+          )}
+          
+          {messages.map((msg, idx) => (
+            <div
+              key={msg.id || idx}
+              className={`mb-8 ${msg.role === 'user' ? 'flex justify-end' : ''}`}
+            >
+              <div className={`max-w-4xl ${msg.role === 'user' ? 'ml-auto' : ''}`}>
+                <div className={`flex items-start gap-3.5 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 ${
+                    msg.role === 'user' 
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/25' 
+                      : 'bg-neutral-900 border border-neutral-800'
+                  }`}>
+                    <span className={`text-xs font-semibold ${msg.role === 'user' ? 'text-white' : 'text-neutral-400'}`}>
+                      {msg.role === 'user' ? 'YOU' : 'AI'}
+                    </span>
                   </div>
-                )}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-blue-600 to-purple-600 text-white'
-                      : 'bg-white text-slate-800 shadow-sm border border-slate-200'
-                  }`}
-                >
-                  <div className="prose prose-sm max-w-none">
-                    {message.content.split('\n').map((line, i) => (
-                      <p key={i} className={message.role === 'user' ? 'text-white' : ''}>
-                        {line}
-                      </p>
-                    ))}
+                  <div className={`flex-1 space-y-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                    {msg.files && msg.files.length > 0 && (
+                      <div className={`flex flex-wrap gap-2 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                        {msg.files.map((file, i) => (
+                          <div key={i} className="inline-flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-xs text-neutral-400">
+                            <FileText className="w-3.5 h-3.5" />
+                            <span>{file.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className={`group relative ${
+                      msg.role === 'user' 
+                        ? 'inline-block bg-gradient-to-br from-blue-500 to-blue-600 px-5 py-3.5 rounded-2xl shadow-lg shadow-blue-500/20 text-white' 
+                        : 'text-neutral-200'
+                    }`} style={{ lineHeight: '1.7' }}>
+                      {msg.role === 'assistant' && (
+                        <div className="absolute -left-1 top-0 w-0.5 h-full bg-gradient-to-b from-blue-500/40 to-transparent rounded-full"></div>
+                      )}
+                      <div className={msg.role === 'assistant' ? 'pl-3' : ''}>
+                        {msg.content.split('\n').map((line, i) => (
+                          <p key={i} className={msg.role === 'user' ? 'mb-0' : 'mb-3 last:mb-0'}>
+                            {line || '\u00A0'}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                    {msg.role === 'assistant' && msg.actions && (
+                      <div className="pl-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {msg.actions.includes('copy') && (
+                          <button
+                            onClick={() => copyToClipboard(msg.content)}
+                            className="px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all flex items-center gap-1.5"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                            Copy
+                          </button>
+                        )}
+                        {msg.actions.includes('export') && (
+                          <button className="px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all flex items-center gap-1.5">
+                            <Download className="w-3.5 h-3.5" />
+                            Export
+                          </button>
+                        )}
+                        <button className="px-2.5 py-1.5 text-xs text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-lg transition-all flex items-center gap-1.5">
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Regenerate
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            ))
+            </div>
+          ))}
+          
+          {isLoading && (
+            <div className="mb-8">
+              <div className="flex items-start gap-3.5">
+                <div className="w-9 h-9 rounded-xl bg-neutral-900 border border-neutral-800 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-semibold text-neutral-400">AI</span>
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="flex gap-1.5 pt-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></div>
+                  </div>
+                  <p className="text-xs text-neutral-500 pl-3">⚡ Ultra-fast inline processing...</p>
+                </div>
+              </div>
+            </div>
           )}
           <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {/* File Upload Area */}
-      {uploadedFiles.length > 0 && (
-        <div className="px-4 py-2 bg-white border-t border-slate-200">
-          <div className="max-w-5xl mx-auto flex flex-wrap gap-2">
-            {uploadedFiles.map((file, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg"
-              >
-                <FileText className="w-4 h-4 text-blue-600" />
-                <span className="text-sm text-blue-900">{file.name}</span>
-                <button
-                  onClick={() => removeFile(index)}
-                  className="hover:bg-blue-100 rounded p-1"
-                >
-                  <X className="w-4 h-4 text-blue-600" />
-                </button>
+      {/* Input Area */}
+      <div className="border-t border-neutral-800/60 bg-neutral-900/50 backdrop-blur-xl">
+        <div className="max-w-5xl mx-auto px-6 py-4">
+          {uploadedFiles.length > 0 && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {uploadedFiles.map((file, i) => (
+                <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-900 border border-neutral-800 rounded-lg">
+                  <FileText className="w-4 h-4 text-neutral-500" />
+                  <span className="text-sm text-neutral-300">{file.name}</span>
+                  <button onClick={() => removeFile(i)} className="text-neutral-500 hover:text-neutral-300">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div 
+            className={`relative transition-all duration-200 ${isDragging ? 'scale-[0.98]' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+          >
+            {isDragging && (
+              <div className="absolute inset-0 border-2 border-dashed border-blue-500/50 rounded-2xl bg-blue-500/5 z-10 flex items-center justify-center backdrop-blur-sm">
+                <div className="text-center">
+                  <Upload className="w-7 h-7 text-blue-500 mx-auto mb-2" />
+                  <p className="text-sm text-blue-400 font-medium">Drop files to upload</p>
+                </div>
               </div>
-            ))}
+            )}
+            
+            <div className="flex items-end gap-2.5">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileUpload}
+                accept=".pdf,.csv,.xlsx,image/*"
+                multiple
+                className="hidden"
+              />
+              
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="p-3 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/60 rounded-xl transition-all duration-200"
+                disabled={isLoading}
+              >
+                <Upload className="w-5 h-5" />
+              </button>
+              
+              <div className="flex-1 relative">
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask chatMPA anything... envelopes, booklets, mail services, quotes ⚡"
+                  className="w-full px-5 py-3.5 bg-neutral-900 border border-neutral-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-transparent resize-none text-neutral-200 placeholder-neutral-500 text-sm transition-all duration-200"
+                  rows="3"
+                  disabled={isLoading}
+                />
+              </div>
+              
+              <button
+                onClick={handleSubmit}
+                disabled={(!input.trim() && uploadedFiles.length === 0) || isLoading}
+                className="p-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 disabled:shadow-none hover:scale-105 active:scale-95 disabled:hover:scale-100"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* Input */}
-      <div
-        className="bg-white border-t border-slate-200 px-4 py-4"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <div className="max-w-5xl mx-auto">
-          <div className={`
-            flex gap-2 p-3 rounded-2xl border-2 transition-all
-            ${isDragging ? 'border-blue-400 bg-blue-50' : 'border-slate-200 bg-white'}
-          `}>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              className="hidden"
-              multiple
-              accept=".csv,.xlsx,.xls,.pdf,.txt"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              disabled={isLoading}
-            >
-              <Upload className="w-5 h-5 text-slate-600" />
-            </button>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !isLoading && handleSubmit()}
-              placeholder="Quote 500 postcards 6x9 4/4..."
-              className="flex-1 px-4 py-2 bg-transparent border-none focus:outline-none text-slate-800 placeholder-slate-400"
-              disabled={isLoading}
-            />
-            <button
-              onClick={() => handleSubmit()}
-              disabled={isLoading || (!input.trim() && uploadedFiles.length === 0)}
-              className="p-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send className="w-5 h-5" />
-            </button>
+          
+          <div className="mt-3 flex items-center justify-center gap-5 text-xs text-neutral-600">
+            <span><kbd className="px-2 py-1 bg-neutral-800/60 border border-neutral-700 rounded font-mono text-neutral-500">Enter</kbd> send</span>
+            <span><kbd className="px-2 py-1 bg-neutral-800/60 border border-neutral-700 rounded font-mono text-neutral-500">⇧ Enter</kbd> new line</span>
+            <span className="text-blue-500">⚡ Ultra-Fast Inline Mode</span>
           </div>
-          <p className="text-xs text-slate-500 mt-2 text-center">
-            Try: "quote 500 6x9 postcards" • "clean this mail list" • "price 10k envelopes"
-          </p>
         </div>
       </div>
+
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #404040;
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #525252;
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #404040 transparent;
+        }
+      `}</style>
     </div>
   );
 }
