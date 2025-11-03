@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Upload, X, Sparkles, FileText, Settings, Calculator, CheckCircle2, Database, Mail, Package, Copy, Download, RefreshCw } from 'lucide-react';
+import Anthropic from '@anthropic-ai/sdk';
 
 export default function App() {
   const [messages, setMessages] = useState([]);
@@ -78,13 +79,54 @@ export default function App() {
     setIsLoading(true);
 
     try {
-      // TODO: Replace with actual Claude API call
-      // Use import.meta.env.VITE_ANTHROPIC_API_KEY for your API key
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
+      const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        throw new Error('API key not found. Please add VITE_ANTHROPIC_API_KEY to your .env.local file.');
+      }
+
+      const client = new Anthropic({
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
+
+      // Build conversation history for context
+      const conversationHistory = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Add current user message
+      conversationHistory.push({
+        role: 'user',
+        content: input
+      });
+
+      // Call Claude API with extended thinking and skill
+      const response = await client.messages.create({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 4096,
+        thinking: {
+          type: 'enabled',
+          budget_tokens: 10000
+        },
+        messages: conversationHistory,
+        metadata: {
+          skill_id: 'skill_017itBMGuP8s5xPH2K683nDy'
+        }
+      });
+
+      // Extract the text content from the response
+      let responseText = '';
+      for (const block of response.content) {
+        if (block.type === 'text') {
+          responseText += block.text;
+        }
+      }
+
       const assistantMessage = {
         role: 'assistant',
-        content: '✅ This is a demo response. Connect your Anthropic API key to enable full functionality.\n\nTo connect:\n1. Add VITE_ANTHROPIC_API_KEY to Vercel environment variables\n2. Replace the API call in handleSubmit\n3. Add your skill IDs',
+        content: responseText || 'No response generated.',
         timestamp: new Date().toISOString(),
         actions: ['copy', 'export']
       };
@@ -94,7 +136,7 @@ export default function App() {
       console.error('Error:', err);
       const errorMessage = {
         role: 'assistant',
-        content: '⚠️ Unable to process your request. Please try again.',
+        content: `⚠️ Error: ${err.message || 'Unable to process your request. Please try again.'}`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
