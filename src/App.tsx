@@ -90,10 +90,9 @@ export default function App() {
         dangerouslyAllowBrowser: true
       });
 
-      // Build minimal conversation history (only last exchange for context)
-      // This speeds up response time significantly
-      const recentMessages = messages.slice(-2); // Only last 2 messages (1 exchange)
-      const conversationHistory = recentMessages.map(msg => ({
+      // Build full conversation history for skill context
+      // Skills need complete context for accurate pricing and logic
+      const conversationHistory = messages.map(msg => ({
         role: msg.role,
         content: msg.content
       }));
