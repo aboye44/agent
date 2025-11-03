@@ -118,6 +118,11 @@ export default function App() {
         }]
       } : {};
 
+      // ===== ONLY ADD SKILLS BETA IF ACTUALLY USING SKILLS =====
+      const betaHeaders = isMailListRequest 
+        ? ['code-execution-2025-08-25', 'prompt-caching-2024-07-31', 'skills-2025-10-02']
+        : ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'];
+
       const assistantMessageId = Date.now();
       setMessages(prev => [...prev, {
         id: assistantMessageId,
@@ -132,7 +137,7 @@ export default function App() {
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4000,
         temperature: 0,
-        betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31', 'skills-2025-10-02'],
+        betas: betaHeaders,
         ...(Object.keys(containerConfig).length > 0 && { container: containerConfig }),
         system: [
           {
@@ -525,10 +530,12 @@ COST CALCULATION:
           }
         ],
         messages: recentMessages,
-        tools: [{
-          type: 'code_execution_20250825',
-          name: 'code_execution'
-        }]
+        ...(isMailListRequest && {
+          tools: [{
+            type: 'code_execution_20250825',
+            name: 'code_execution'
+          }]
+        })
       });
 
       let fullResponse = '';
