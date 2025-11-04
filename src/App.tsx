@@ -6,7 +6,9 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [autoScroll, setAutoScroll] = useState(true);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('chatmpa-history');
@@ -22,8 +24,17 @@ export default function App() {
   }, [messages]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (autoScroll) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, autoScroll]);
+
+  // Detect when user scrolls up manually
+  const handleScroll = (e) => {
+    const container = e.target;
+    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    setAutoScroll(isAtBottom);
+  };
 
   // Add custom scrollbar styles
   useEffect(() => {
@@ -60,6 +71,9 @@ export default function App() {
 
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
+
+    // Re-enable auto-scroll when user sends a new message
+    setAutoScroll(true);
 
     const userMessage = {
       role: 'user',
@@ -743,7 +757,7 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" ref={messagesContainerRef} onScroll={handleScroll}>
         <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 && (
             <div className="flex items-center justify-center min-h-[60vh]">
