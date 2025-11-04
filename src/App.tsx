@@ -297,38 +297,70 @@ stock_cost_per_sheet = 0.0965
 click_rate = 0.0416
 product_type = "postcard"  # or "envelope", "booklet", "letter"
 
-# === BOOKLET EXAMPLE ===
-qty = 1000
-total_pages = 16  # USER SPECIFIED PAGE COUNT
+# === BOOKLET EXAMPLE - CRITICAL: NO UP-COUNT! ===
+qty = 1529
+total_pages = 12  # USER SPECIFIED PAGE COUNT
 
-# Cover (always 1 sheet, 4 pages)
-cover_sheets = math.ceil(qty * 1.03)
-cover_stock_cost = 0.0965  # per sheet
-cover_click_rate = 0.0416
-cover_paper = cover_sheets * cover_stock_cost
-cover_clicks = cover_sheets * 2 * cover_click_rate  # 4/4 = 2 sides
+# ⚠️ BOOKLETS DO NOT IMPOSE LIKE POSTCARDS
+# Each 13×19 sheet = 4 BOOK PAGES (one spread per side)
+# Formula: total_pages ÷ 4 = sheets_per_booklet
+# Then: qty × sheets_per_booklet × spoilage = total_sheets
 
-# Interior text
-# Formula: (total_pages - 4) ÷ 4 = sheets per booklet
-# Example: 16 pages - 4 cover = 12 interior pages ÷ 4 = 3 sheets per booklet
-interior_pages = total_pages - 4
-sheets_per_booklet = interior_pages / 4
-text_sheets = math.ceil(qty * sheets_per_booklet * 1.03)
-text_stock_cost = 0.0505  # per sheet
-text_click_rate = 0.0027  # Nuvera B&W for 1/1 text
-text_paper = text_sheets * text_stock_cost
-text_clicks = text_sheets * 2 * text_click_rate  # 1/1 = 2 sides B&W
+# Calculate sheets per booklet
+sheets_per_booklet = total_pages / 4  # Example: 12 pages ÷ 4 = 3 sheets
 
-# Finishing (16 pages = $0.015/book)
-finishing_setup = 25.00
-finishing_rate = 0.015
-finishing = finishing_setup + (qty * 1.03 * finishing_rate)
+# Spoilage
+spoilage = 1.03  # 3% for 501-2,500 tier
 
-total_cost = cover_paper + cover_clicks + text_paper + text_clicks + finishing
+# Total sheets needed (NO up-count division!)
+total_sheets = math.ceil(qty * sheets_per_booklet * spoilage)
 
-print(f"Cover: 1 sheet × {qty} booklets = {cover_sheets} sheets")
-print(f"Text: {sheets_per_booklet} sheets/booklet × {qty} = {text_sheets} sheets")
-print(f"Total: {total_cost:.2f}")
+print(f"Pages: {total_pages}")
+print(f"Sheets per booklet: {sheets_per_booklet}")
+print(f"Total sheets: {qty} × {sheets_per_booklet} × {spoilage} = {total_sheets}")
+# Result: 1,529 × 3 × 1.03 = 4,725 sheets (NOT 2,362!)
+
+# Paper cost
+stock_cost = 0.0408  # 80# Gloss Text
+paper_cost = total_sheets * stock_cost
+
+# Click cost - P-01 Iridesse for 4/4
+click_rate = 0.0416
+sides = 2  # 4/4 = 2 sides
+click_cost = total_sheets * sides * click_rate
+
+print(f"Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
+print(f"Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
+
+# Saddle Stitching - CORRECTED LABOR RATES
+stitch_setup = 50.00
+stitch_run_rate = 0.0625  # $75/hr ÷ 1,200 pcs/hr
+stitching = stitch_setup + (qty * stitch_run_rate)
+
+print(f"Stitching: ${stitching:.2f} (${stitching/qty:.4f}/pc)")
+
+# Folding - CORRECTED LABOR RATES (if quarter-fold)
+fold_setup = 40.00
+fold_run_rate = 0.075  # $60/hr ÷ 800 pcs/hr
+folding = fold_setup + (qty * fold_run_rate)
+
+print(f"Folding: ${folding:.2f} (${folding/qty:.4f}/pc)")
+
+# Overhead/QC - MANDATORY FOR BOOKLETS
+overhead = 100.00
+print(f"Overhead/QC: ${overhead:.2f}")
+
+# Total cost
+total_cost = paper_cost + click_cost + stitching + folding + overhead
+print(f"TOTAL COST: ${total_cost:.2f} (${total_cost/qty:.4f}/pc)")
+
+# Expected result for 12-page, 1,529 qty:
+# Paper: $192.76
+# Clicks: $393.09
+# Stitching: $145.56
+# Folding: $154.68
+# Overhead: $100.00
+# TOTAL: $986.09 ($0.645/pc)
 
 # === IMPOSITION (postcards/flyers only) ===
 if product_type in ["postcard", "flyer"]:
@@ -682,14 +714,32 @@ BOOKLETS (6-tier - more complex than postcards):
 - 2,501-10,000: 2.80× (64% margin)
 - 10,001+: 2.50× (60% margin)
 
-BOOKLET FINISHING COSTS (based on October 2025 competitive analysis):
-- Setup: $25.00 (StitchLiner makeready)
-- Run cost per booklet (includes labor + wire + 3% spoilage):
-  * 8-16 pages: $0.015/booklet (5,500 books/hr)
-  * 17-32 pages: $0.020/booklet (5,000 books/hr)
-  * 33-64 pages: $0.028/booklet (4,200 books/hr)
-  * 65-96 pages: $0.038/booklet (3,500 books/hr)
-- Formula: $25 + (Qty × 1.03 × per_book_rate)
+BOOKLET FINISHING COSTS (based on November 2025 corrections):
+
+SADDLE STITCHING:
+- Setup: $50.00 (StitchLiner makeready, includes QC)
+- Run cost: $0.0625/booklet ($75/hr labor ÷ 1,200 pcs/hr)
+- Formula: $50 + (Qty × $0.0625)
+
+FOLDING (if quarter-fold or similar):
+- Setup: $40.00 (folder adjustment, makeready)
+- Run cost: $0.075/pc ($60/hr labor ÷ 800 pcs/hr)
+- Formula: $40 + (Qty × $0.075)
+
+OVERHEAD/QC (mandatory for all booklets):
+- Base: $100.00 (packaging, final inspection, boxing, staging)
+
+Example: 1,529 booklets
+- Stitching: $50 + (1,529 × $0.0625) = $145.56
+- Folding: $40 + (1,529 × $0.075) = $154.68
+- Overhead: $100.00
+- Total finishing: $400.24
+
+OLD (WRONG) costs were:
+- Stitching: $65 (too low)
+- Folding: $23 (way too low)
+- No overhead
+- Total: $88 (understated by $312!)
 
 === FOLDING COSTS ===
 
@@ -756,7 +806,8 @@ COMPLETE SERVICE MENU:
 - S-05 Machine Inserting (Each additional): $0.01/pc
 - S-06 Tabbing (Double Tab): $0.035/pc
 - S-07 Tabbing (Triple Tab): $0.05/pc
-- S-08 Bulk Mail Prep & Traying: $0.017/pc
+- S-08 Bulk Mail Prep (Letters/Postcards): $0.017/pc
+- S-08 Bulk Mail Prep (Flats): $0.027/pc
 - S-09 Machine Folding: $0.015/pc ($15 minimum)
 - S-10 Collating: $0.02/pc ($15 minimum)
 - S-11 Machine Stamping: $0.02/pc
@@ -780,8 +831,8 @@ TOTAL: $0.059/pc
 - S-01: $0.007/pc
 - S-03: $0.04/pc (Flat addressing)
 - S-06: $0.035/pc (Double tab - standard)
-- S-08: $0.017/pc
-TOTAL: $0.099/pc
+- S-08: $0.027/pc (Bulk mail prep - FLATS rate)
+TOTAL: $0.109/pc
 
 **LETTERS (In #10 envelopes):**
 Machine insert (standard):
