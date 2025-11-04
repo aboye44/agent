@@ -708,22 +708,27 @@ SADDLE-STITCHED BOOKLETS (multiple sheets, stapled):
 - Pages turn
 - 8+ pages typical
 
-⚠️ IF USER MENTIONS BOTH "fold" AND "saddle-stitch":
-This is AMBIGUOUS - ask for clarification:
+⚠️ BOOKLET FINISHED SIZE vs FOLDED BROCHURE:
 
-"I need to clarify your format:
+When user says "X-page BOOKLET folded to [size]":
+- This means FINISHED BOOKLET SIZE (not a folding operation)
+- Example: "12-page booklet 8.5×11 folded to 8.5×5.5" = Booklet with 8.5×5.5 finished size
+- NO folding cost - this is just the trim size
+- Proceed with booklet quote
 
-OPTION A: Folded Brochure
-• Single sheet, folded (no binding)
-• [X] panels
-• Cannot exceed 8 panels from one sheet
+When user says "BROCHURE folded to [size]" (no page count):
+- This is a FOLDING OPERATION (single sheet)
+- Example: "brochure folded to 8.5×5.5" = Single sheet with folding cost
+- ADD folding cost
+- Calculate as flat sheet + folding
 
-OPTION B: Saddle-Stitched Booklet  
-• Multiple sheets, stapled at spine
-• Opens like a magazine
-• [X] pages
+⚠️ ONLY ASK FOR CLARIFICATION IF:
+- User says "brochure" with page count AND folding (genuinely ambiguous)
+- User says conflicting specs like "single sheet 12 pages"
 
-Which format do you need?"
+DO NOT ask if:
+- User clearly says "X-page booklet" with finished size
+- User says "booklet folded to [size]" (this is just finished size)
 
 WHEN TO APPLY FOLDING:
 - Any product described as "brochure", "trifold", "bifold", "quarter fold"
