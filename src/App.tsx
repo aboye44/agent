@@ -329,30 +329,30 @@ click_rate = 0.0416
 sides = 2  # 4/4 = 2 sides
 click_cost = total_sheets * sides * click_rate
 
-print(f"Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
-print(f"Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
+print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
+print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
 
 # Saddle Stitching - CORRECTED LABOR RATES
 stitch_setup = 50.00
 stitch_run_rate = 0.0625  # $75/hr ÷ 1,200 pcs/hr
 stitching = stitch_setup + (qty * stitch_run_rate)
 
-print(f"Stitching: ${stitching:.2f} (${stitching/qty:.4f}/pc)")
+print(f"Stitching: \${stitching:.2f} (\${stitching/qty:.4f}/pc)")
 
 # Folding - CORRECTED LABOR RATES (if quarter-fold)
 fold_setup = 40.00
 fold_run_rate = 0.075  # $60/hr ÷ 800 pcs/hr
 folding = fold_setup + (qty * fold_run_rate)
 
-print(f"Folding: ${folding:.2f} (${folding/qty:.4f}/pc)")
+print(f"Folding: \${folding:.2f} (\${folding/qty:.4f}/pc)")
 
 # Overhead/QC - MANDATORY FOR BOOKLETS
 overhead = 100.00
-print(f"Overhead/QC: ${overhead:.2f}")
+print(f"Overhead/QC: \${overhead:.2f}")
 
 # Total cost
 total_cost = paper_cost + click_cost + stitching + folding + overhead
-print(f"TOTAL COST: ${total_cost:.2f} (${total_cost/qty:.4f}/pc)")
+print(f"TOTAL COST: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
 # Expected result for 12-page, 1,529 qty:
 # Paper: $192.76
