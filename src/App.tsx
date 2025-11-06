@@ -181,6 +181,15 @@ When user requests a quote, you MUST:
 3. Present the results from your Python calculations
 4. NEVER do arithmetic in your head - always use code
 
+⚠️ MANDATORY INTERNAL OUTPUT (NEVER OMIT) ⚠️
+This app is INTERNAL. After every quote, ALWAYS output a "Cost (internal)" section with these exact lines:
+- Paper: $X.XX ($Y.YY/pc)
+- Clicks: $X.XX ($Y.YY/pc)
+- Stitching: $X.XX ($Y.YY/pc)  [0 if not applicable]
+- Overhead/QC: $X.XX           [0 if not applicable]
+- TOTAL COST: $X.XX ($Y.YY/pc)
+Do NOT hide internal costs. Do NOT replace with a summary.
+
 ⚠️ SPEC GATHERING RULES ⚠️
 
 You need exactly 4 specs to calculate a quote:
@@ -222,6 +231,7 @@ qty = 1529
 total_pages = 12  # USER SPECIFIED PAGE COUNT
 
 # ⚠️ BOOKLETS DO NOT IMPOSE LIKE POSTCARDS
+# Booklets DO NOT use generic folding. NEVER apply folding to product_type=="booklet".
 # Each 13×19 sheet = 4 BOOK PAGES (one spread per side)
 # Formula: total_pages ÷ 4 = sheets_per_booklet
 # Then: qty × sheets_per_booklet × spoilage = total_sheets
@@ -257,18 +267,14 @@ stitch_setup = 50.00
 stitch_run_rate = 0.0625  # $75/hr ÷ 1,200 pcs/hr
 stitching = stitch_setup + (qty * stitch_run_rate)
 
-print(f"Stitching: \${stitching:.2f} (\${stitching/qty:.4f}/pc)")
-
-# Folding - CORRECTED LABOR RATES (if quarter-fold)
-fold_setup = 40.00
-fold_run_rate = 0.075  # $60/hr ÷ 800 pcs/hr
-folding = fold_setup + (qty * fold_run_rate)
-
-print(f"Folding: \${folding:.2f} (\${folding/qty:.4f}/pc)")
+print(f"Saddle Stitching: \${stitching:.2f} (\${stitching/qty:.4f}/pc)")
 
 # Overhead/QC - MANDATORY FOR BOOKLETS
 overhead = 100.00
 print(f"Overhead/QC: \${overhead:.2f}")
+
+# NOTE: Booklets do NOT include generic folding. Set folding to 0 unless explicitly requested as a special operation.
+folding = 0.0
 
 # Total cost
 total_cost = paper_cost + click_cost + stitching + folding + overhead
@@ -278,9 +284,9 @@ print(f"TOTAL COST: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 # Paper: $192.76
 # Clicks: $393.09
 # Stitching: $145.56
-# Folding: $154.68
+# Folding: $0.00
 # Overhead: $100.00
-# TOTAL: $986.09 ($0.645/pc)
+# TOTAL: $831.41 ($0.544/pc)
 
 # === IMPOSITION (postcards/flyers only) ===
 if product_type in ["postcard", "flyer"]:
@@ -339,7 +345,7 @@ print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
 print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
 
 # === FOLDING (for brochures) ===
-needs_folding = False  # Set to True for brochures
+needs_folding = False  # Set to True for brochures (NEVER for booklets)
 if needs_folding:
     if qty <= 1000:
         fold_rate = 0.025
@@ -363,32 +369,68 @@ print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 # === PRICING MULTIPLIER ===
 if product_type == "booklet":
     if qty <= 250:
-        multiplier = 5.20
+        multiplier = 4.00
     elif qty <= 500:
-        multiplier = 4.30
+        multiplier = 3.00
     elif qty <= 1000:
-        multiplier = 3.50
-    elif qty <= 2500:
-        multiplier = 3.20
-    elif qty <= 10000:
         multiplier = 2.80
-    else:
-        multiplier = 2.50
-else:
-    if qty <= 250:
-        multiplier = 6.50
-    elif qty <= 500:
-        multiplier = 5.30
-    elif qty <= 1000:
-        multiplier = 4.56
     elif qty <= 2500:
-        multiplier = 3.50
+        multiplier = 2.60
+    elif qty <= 10000:
+        multiplier = 2.40
+    else:
+        multiplier = 2.20
+elif product_type in ["postcard", "flyer"]:
+    if qty <= 250:
+        multiplier = 5.50
+    elif qty <= 500:
+        multiplier = 4.50
+    elif qty <= 1000:
+        multiplier = 3.80
+    elif qty <= 2500:
+        multiplier = 3.30
     elif qty <= 10000:
         multiplier = 3.00
     elif qty <= 14999:
-        multiplier = 2.20
+        multiplier = 2.50
     else:
-        multiplier = 1.90
+        multiplier = 2.20
+elif product_type == "envelope":
+    if qty <= 250:
+        multiplier = 5.00
+    elif qty <= 500:
+        multiplier = 4.00
+    elif qty <= 1000:
+        multiplier = 3.50
+    elif qty <= 5000:
+        multiplier = 3.00
+    else:
+        multiplier = 2.50
+elif product_type == "letter":
+    if qty <= 250:
+        multiplier = 4.50
+    elif qty <= 1000:
+        multiplier = 3.50
+    elif qty <= 5000:
+        multiplier = 3.00
+    else:
+        multiplier = 2.50
+else:
+    # Fallback for any unclassified product (keep close to postcards mid-tier)
+    if qty <= 250:
+        multiplier = 5.50
+    elif qty <= 500:
+        multiplier = 4.50
+    elif qty <= 1000:
+        multiplier = 3.80
+    elif qty <= 2500:
+        multiplier = 3.30
+    elif qty <= 10000:
+        multiplier = 3.00
+    elif qty <= 14999:
+        multiplier = 2.50
+    else:
+        multiplier = 2.20
 
 quote = total_cost * multiplier
 
@@ -700,7 +742,7 @@ DO NOT ask if:
 - User clearly says "X-page booklet" with finished size
 - User says "booklet folded to [size]" (this is just finished size)
 
-WHEN TO APPLY FOLDING:
+WHEN TO APPLY FOLDOING:
 - Any product described as "brochure", "trifold", "bifold", "quarter fold"
 - Flyers that need folding (e.g., "fold to 8.5×11")
 - User mentions "fold to [size]" or "folded to [size]"
@@ -721,7 +763,7 @@ DESIGN RATE: $75/hour
 COMPLETE SERVICE MENU:
 - S-01 NCOA/CASS: $0.007/pc ($10 minimum)
 - S-02 Inkjet Addressing (Letter/Postcard): $0.035/pc
-- S-03 Inkjet Addressing (Flat): $0.04/pc
+- S-03 Inkjet Addressing (Flat): $0.04/pc)
 - S-04 Machine Inserting (1st piece): $0.02/pc
 - S-05 Machine Inserting (Each additional): $0.01/pc
 - S-06 Tabbing (Double Tab): $0.035/pc
@@ -900,9 +942,11 @@ Production:
 * Imposition: 4-up
 * Press Sheets: 258 (includes 3% spoilage)
 
-Cost:
+Cost (internal):
 * Paper: $31.71 ($0.0317/pc)
 * Clicks: $21.47 ($0.0215/pc)
+* Stitching: $0.00 ($0.0000/pc)
+* Overhead/QC: $0.00
 * TOTAL COST: $53.18 ($0.0532/pc)
 
 QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
@@ -1025,8 +1069,7 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
                   </button>
                   <button
                     onClick={() => setInput('quote 10k #10 envelopes 1/0')}
-                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
-                  >
+                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                         <span className="text-xl">✉️</span>
