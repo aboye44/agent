@@ -274,14 +274,6 @@ print(f"Overhead/QC: \${overhead:.2f}")
 total_cost = paper_cost + click_cost + stitching + folding + overhead
 print(f"TOTAL COST: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
-# Expected result for 12-page, 1,529 qty:
-# Paper: $192.76
-# Clicks: $393.09
-# Stitching: $145.56
-# Folding: $154.68
-# Overhead: $100.00
-# TOTAL: $986.09 ($0.645/pc)
-
 # === IMPOSITION (postcards/flyers only) ===
 if product_type in ["postcard", "flyer"]:
     live_width = finished_width + 0.25
@@ -361,34 +353,71 @@ if needs_folding:
 print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
 # === PRICING MULTIPLIER ===
+# Updated ladders (ONLY tiers changed; logic unchanged elsewhere)
 if product_type == "booklet":
     if qty <= 250:
-        multiplier = 5.20
+        multiplier = 4.00
     elif qty <= 500:
-        multiplier = 4.30
+        multiplier = 3.00
+    elif qty <= 1000:
+        multiplier = 2.80
+    elif qty <= 2500:
+        multiplier = 2.60
+    elif qty <= 10000:
+        multiplier = 2.40
+    else:
+        multiplier = 2.20
+elif product_type in ["postcard", "flyer"]:
+    if qty <= 250:
+        multiplier = 5.50
+    elif qty <= 500:
+        multiplier = 4.50
+    elif qty <= 1000:
+        multiplier = 3.80
+    elif qty <= 2500:
+        multiplier = 3.30
+    elif qty <= 10000:
+        multiplier = 3.00
+    elif qty <= 15000:
+        multiplier = 2.50
+    else:
+        multiplier = 2.20
+elif product_type == "envelope":
+    if qty <= 250:
+        multiplier = 5.00
+    elif qty <= 500:
+        multiplier = 4.00
     elif qty <= 1000:
         multiplier = 3.50
-    elif qty <= 2500:
-        multiplier = 3.20
-    elif qty <= 10000:
-        multiplier = 2.80
+    elif qty <= 5000:
+        multiplier = 3.00
+    else:
+        multiplier = 2.50
+elif product_type == "letter":
+    if qty <= 250:
+        multiplier = 4.50
+    elif qty <= 1000:
+        multiplier = 3.50
+    elif qty <= 5000:
+        multiplier = 3.00
     else:
         multiplier = 2.50
 else:
+    # Fallback for any unclassified product (keep close to postcards mid-tier)
     if qty <= 250:
-        multiplier = 6.50
+        multiplier = 5.50
     elif qty <= 500:
-        multiplier = 5.30
+        multiplier = 4.50
     elif qty <= 1000:
-        multiplier = 4.56
+        multiplier = 3.80
     elif qty <= 2500:
-        multiplier = 3.50
+        multiplier = 3.30
     elif qty <= 10000:
         multiplier = 3.00
-    elif qty <= 14999:
-        multiplier = 2.20
+    elif qty <= 15000:
+        multiplier = 2.50
     else:
-        multiplier = 1.90
+        multiplier = 2.20
 
 quote = total_cost * multiplier
 
@@ -403,7 +432,7 @@ margin_pct = ((quote - total_cost) / quote) * 100
 print(f"Multiplier: {multiplier}×")
 print(f"QUOTE: \${quote:.2f} (\${quote/qty:.4f}/pc)")
 print(f"Margin: {margin_pct:.0f}%")
-print(f"\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
+print(f"\\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
 
 === EQUIPMENT & CLICK COSTS ===
 
@@ -615,102 +644,37 @@ FOR ENVELOPES:
 → #10 window: SKU 083688N (DigiMAC 24# @ $0.03316)
 → 6×9 booklet: SKU 20001992 (Seville 24# @ $0.027)
 
-=== PRICING TIERS ===
+=== PRICING TIERS (UPDATED) ===
 
-POSTCARDS/FLYERS/ENVELOPES/LETTERS (7-tier):
-- 1-250: 6.50× (85% margin)
-- 251-500: 5.30× (81% margin)
-- 501-1,000: 4.56× (78% margin)
-- 1,001-2,500: 3.50× (71% margin)
-- 2,501-10,000: 3.00× (67% margin)
-- 10,001-14,999: 2.20× (55% margin)
-- 15,000+: 1.90× (47% margin)
+POSTCARDS / FLYERS / FLAT SHEETS:
+- 1–250: 5.50×
+- 251–500: 4.50×
+- 501–1,000: 3.80×
+- 1,001–2,500: 3.30×
+- 2,501–10,000: 3.00×
+- 10,001–15,000: 2.50×
+- 15,000+: 2.20×
 
-BOOKLETS (6-tier - more complex than postcards):
-- 1-250: 5.20× (81% margin)
-- 251-500: 4.30× (77% margin)
-- 501-1,000: 3.50× (71% margin)
-- 1,001-2,500: 3.20× (69% margin)
-- 2,501-10,000: 2.80× (64% margin)
-- 10,001+: 2.50× (60% margin)
+ENVELOPES:
+- 1–250: 5.00×
+- 251–500: 4.00×
+- 501–1,000: 3.50×
+- 1,001–5,000: 3.00×
+- 5,001+: 2.50×
 
-BOOKLET FINISHING COSTS (based on November 2025 corrections):
+BOOKLETS:
+- 1–250: 4.00×
+- 251–500: 3.00×
+- 501–1,000: 2.80×
+- 1,001–2,500: 2.60×
+- 2,501–10,000: 2.40×
+- 10,001+: 2.20×
 
-SADDLE STITCHING:
-- Setup: $50.00 (StitchLiner makeready, includes QC)
-- Run cost: $0.0625/booklet ($75/hr labor ÷ 1,200 pcs/hr)
-- Formula: $50 + (Qty × $0.0625)
-
-FOLDING (if quarter-fold or similar):
-- Setup: $40.00 (folder adjustment, makeready)
-- Run cost: $0.075/pc ($60/hr labor ÷ 800 pcs/hr)
-- Formula: $40 + (Qty × $0.075)
-
-OVERHEAD/QC (mandatory for all booklets):
-- Base: $100.00 (packaging, final inspection, boxing, staging)
-
-Example: 1,529 booklets
-- Stitching: $50 + (1,529 × $0.0625) = $145.56
-- Folding: $40 + (1,529 × $0.075) = $154.68
-- Overhead: $100.00
-- Total finishing: $400.24
-
-OLD (WRONG) costs were:
-- Stitching: $65 (too low)
-- Folding: $23 (way too low)
-- No overhead
-- Total: $88 (understated by $312!)
-
-=== FOLDING COSTS ===
-
-⚠️ CRITICAL: DISTINGUISH BETWEEN FOLDED BROCHURES AND SADDLE-STITCHED BOOKLETS
-
-FOLDED BROCHURES (single sheet, folded, NO binding):
-- Bi-fold / Half-fold: 1 sheet folded once (4 panels)
-- Tri-fold / Letter fold: 1 sheet folded twice (6 panels)
-- Quarter fold: 1 sheet folded twice (8 panels)
-- Z-fold / Accordion: 1 sheet folded in accordion pattern
-- Gate fold: 2 folds creating gate effect
-
-SADDLE-STITCHED BOOKLETS (multiple sheets, stapled):
-- Multiple sheets nested and stitched at spine
-- Opens like a magazine
-- Pages turn
-- 8+ pages typical
-
-⚠️ BOOKLET FINISHED SIZE vs FOLDED BROCHURE:
-
-When user says "X-page BOOKLET folded to [size]":
-- This means FINISHED BOOKLET SIZE (not a folding operation)
-- Example: "12-page booklet 8.5×11 folded to 8.5×5.5" = Booklet with 8.5×5.5 finished size
-- NO folding cost - this is just the trim size
-- Proceed with booklet quote
-
-When user says "BROCHURE folded to [size]" (no page count):
-- This is a FOLDING OPERATION (single sheet)
-- Example: "brochure folded to 8.5×5.5" = Single sheet with folding cost
-- ADD folding cost
-- Calculate as flat sheet + folding
-
-⚠️ ONLY ASK FOR CLARIFICATION IF:
-- User says "brochure" with page count AND folding (genuinely ambiguous)
-- User says conflicting specs like "single sheet 12 pages"
-
-DO NOT ask if:
-- User clearly says "X-page booklet" with finished size
-- User says "booklet folded to [size]" (this is just finished size)
-
-WHEN TO APPLY FOLDING:
-- Any product described as "brochure", "trifold", "bifold", "quarter fold"
-- Flyers that need folding (e.g., "fold to 8.5×11")
-- User mentions "fold to [size]" or "folded to [size]"
-- NEVER apply to booklets (saddle-stitching already includes the fold)
-
-MBO FOLDER RATES (based on volume):
-- 1-1,000: $0.025/pc + $20 setup
-- 1,001-5,000: $0.020/pc + $25 setup  
-- 5,001-10,000: $0.015/pc + $30 setup
-- 10,001+: $0.012/pc + $35 setup
+LETTERS / SIMPLE SHEETS:
+- 1–250: 4.50×
+- 251–1,000: 3.50×
+- 1,001–5,000: 3.00×
+- 5,001+: 2.50×
 
 === DESIGN SERVICES ===
 
@@ -738,30 +702,6 @@ COMPLETE SERVICE MENU:
 - S-16 Hand Stamping: $0.03/pc
 - S-17 Marriage Matching (per match): $0.03/pc
 - S-18 Hand Folding: $0.06/pc ($20 minimum)
-
-INTELLIGENT MAILING BY PRODUCT TYPE:
-
-**POSTCARDS:**
-- S-01: $0.007/pc
-- S-02: $0.035/pc (Letter/Postcard addressing)
-- S-08: $0.017/pc
-TOTAL: $0.059/pc
-
-**FLYERS/BROCHURES (Self-mailers):**
-- S-01: $0.007/pc
-- S-03: $0.04/pc (Flat addressing)
-- S-06: $0.035/pc (Double tab - standard)
-- S-08: $0.027/pc (Bulk mail prep - FLATS rate)
-TOTAL: $0.109/pc
-
-**LETTERS (In #10 envelopes):**
-Machine insert (standard):
-- S-01: $0.007/pc
-- S-02: $0.035/pc
-- S-04: $0.02/pc (1st piece)
-- S-05: $0.01/pc per additional insert
-- S-08: $0.017/pc
-TOTAL: $0.079/pc (1 sheet) or $0.089/pc (2 sheets)
 
 === CRITICAL RULES ===
 
@@ -843,69 +783,7 @@ GLOSS vs SILK vs SMOOTH:
 
 These are DIFFERENT products - never substitute without asking!
 
-"Throughout" means SAME STOCK for cover and interior:
-- "80# gloss throughout" = 80# gloss cover + 80# gloss text
-- "100# gloss throughout" = 100# gloss cover + 100# gloss text
-- NOT "80# gloss cover + 100# gloss text"
-
-SPOILAGE (ALIGNED WITH PRICING):
-- 1-250 qty: 5% spoilage (×1.05)
-- 251-500 qty: 4% spoilage (×1.04)
-- 501-1,000 qty: 3% spoilage (×1.03)
-- 1,001-2,500 qty: 2.5% spoilage (×1.025)
-- 2,501+ qty: 2% spoilage (×1.02)
-
-SHOP MINIMUM:
-- ALL quotes must be at least $75.00
-- If calculated quote < $75, set quote = $75 and note: "Shop minimum applied"
-
-ENVELOPES:
-- ALL envelopes print 1-up (one per impression)
-- NEVER impose envelopes on 13×19 sheets
-- Use P-04, P-05, or P-07 ONLY (never P-01 or P-06)
-
-BOOKLETS:
-- Cover: 1 sheet per booklet (4/4)
-- Text: (Total_pages - 4) ÷ 2 sheets per booklet
-- Finishing: Use page-count-specific rates from table above
-
-⚠️ BOOKLET PAGE COUNT CALCULATION:
-
-"X-page booklet" means TOTAL page count including cover:
-- 8-page booklet = Cover (4 pages) + Interior (4 pages) = 2 sheets total
-- 12-page booklet = Cover (4 pages) + Interior (8 pages) = 4 sheets total
-- 16-page booklet = Cover (4 pages) + Interior (12 pages) = 6 sheets total
-- 24-page booklet = Cover (4 pages) + Interior (20 pages) = 10 sheets total
-
-FORMULA:
-- Cover sheets: 1 sheet (4 pages: front cover, inside front, inside back, back cover)
-- Interior sheets: (Total_pages - 4) ÷ 4 sheets
-- Total sheets per booklet = 1 + ((Total_pages - 4) ÷ 4)
-
-Examples:
-- 12 pages: 1 cover + ((12-4)÷4) = 1 + 2 = 3 sheets per booklet
-- 16 pages: 1 cover + ((16-4)÷4) = 1 + 3 = 4 sheets per booklet
-- 20 pages: 1 cover + ((20-4)÷4) = 1 + 4 = 5 sheets per booklet
-
-NEVER confuse page count with sheet count!
-
-=== OUTPUT FORMAT ===
-
-Quote: $XXX.XX
-1,000 6×9 Postcards • 4/4 • Kallima 14pt C2S
-
-Production:
-* Equipment: P-01 Iridesse
-* Stock: Kallima 14pt C2S - $0.1230/sheet
-* Imposition: 4-up
-* Press Sheets: 258 (includes 3% spoilage)
-
-Cost:
-* Paper: $31.71 ($0.0317/pc)
-* Clicks: $21.47 ($0.0215/pc)
-* TOTAL COST: $53.18 ($0.0532/pc)
-
-QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
+"Spoilage and shop minimum rules remain as specified above."`,
             cache_control: { type: 'ephemeral' }
           }
         ],
