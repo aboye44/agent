@@ -190,6 +190,8 @@ This app is INTERNAL. After every quote, ALWAYS output a "Cost (internal)" secti
 - TOTAL COST: $X.XX ($Y.YY/pc)
 Do NOT hide internal costs. Do NOT replace with a summary.
 
+Always use the **multiplier computed in Python** to set the final price. Do NOT use any narrative pricing tables.
+
 ⚠️ SPEC GATHERING RULES ⚠️
 
 You need exactly 4 specs to calculate a quote:
@@ -229,6 +231,13 @@ product_type = "postcard"  # or "envelope", "booklet", "letter"
 # === BOOKLET EXAMPLE - CRITICAL: NO UP-COUNT! ===
 qty = 1529
 total_pages = 12  # USER SPECIFIED PAGE COUNT
+
+# --- Booklet auto-detect (ensures correct product_type) ---
+try:
+    total_pages  # if defined, this is a booklet calc
+    product_type = "booklet"
+except NameError:
+    pass
 
 # ⚠️ BOOKLETS DO NOT IMPOSE LIKE POSTCARDS
 # Booklets DO NOT use generic folding. NEVER apply folding to product_type=="booklet".
@@ -279,14 +288,6 @@ folding = 0.0
 # Total cost
 total_cost = paper_cost + click_cost + stitching + folding + overhead
 print(f"TOTAL COST: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
-
-# Expected result for 12-page, 1,529 qty:
-# Paper: $192.76
-# Clicks: $393.09
-# Stitching: $145.56
-# Folding: $0.00
-# Overhead: $100.00
-# TOTAL: $831.41 ($0.544/pc)
 
 # === IMPOSITION (postcards/flyers only) ===
 if product_type in ["postcard", "flyer"]:
@@ -366,7 +367,7 @@ if needs_folding:
 
 print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
-# === PRICING MULTIPLIER ===
+# === PRICING MULTIPLIER (updated ladders) ===
 if product_type == "booklet":
     if qty <= 250:
         multiplier = 4.00
@@ -432,6 +433,10 @@ else:
     else:
         multiplier = 2.20
 
+# Safety: enforce correct booklet tier at critical breakpoints
+if product_type == "booklet" and 251 <= qty <= 500:
+    multiplier = 3.00
+
 quote = total_cost * multiplier
 
 # === SHOP MINIMUM ===
@@ -445,7 +450,7 @@ margin_pct = ((quote - total_cost) / quote) * 100
 print(f"Multiplier: {multiplier}×")
 print(f"QUOTE: \${quote:.2f} (\${quote/qty:.4f}/pc)")
 print(f"Margin: {margin_pct:.0f}%")
-print(f"\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
+print(f"\\nVerification: \${total_cost:.2f} × {multiplier} = \${quote:.2f}")
 
 === EQUIPMENT & CLICK COSTS ===
 
@@ -531,7 +536,6 @@ SKU 10002315: Springhill 67# Cream @ $0.05596 (11×17)
 SKU 100543434: Exact 90# Yellow @ $0.05482 (11×17)
 SKU 67508: Lettermark 60# Gray @ $0.03282 (11×17)
 SKU 41928: Classic Linen 80# Solar White @ $1.18235 (26×40, premium)
-SKU 105343: CoverIt 16pt Leatherette Black @ $0.01227 (8.5×11, binding)
 
 ENVELOPES:
 #10 Standard:
@@ -742,7 +746,7 @@ DO NOT ask if:
 - User clearly says "X-page booklet" with finished size
 - User says "booklet folded to [size]" (this is just finished size)
 
-WHEN TO APPLY FOLDOING:
+WHEN TO APPLY FOLDING:
 - Any product described as "brochure", "trifold", "bifold", "quarter fold"
 - Flyers that need folding (e.g., "fold to 8.5×11")
 - User mentions "fold to [size]" or "folded to [size]"
@@ -763,7 +767,7 @@ DESIGN RATE: $75/hour
 COMPLETE SERVICE MENU:
 - S-01 NCOA/CASS: $0.007/pc ($10 minimum)
 - S-02 Inkjet Addressing (Letter/Postcard): $0.035/pc
-- S-03 Inkjet Addressing (Flat): $0.04/pc)
+- S-03 Inkjet Addressing (Flat): $0.04/pc
 - S-04 Machine Inserting (1st piece): $0.02/pc
 - S-05 Machine Inserting (Each additional): $0.01/pc
 - S-06 Tabbing (Double Tab): $0.035/pc
@@ -1069,7 +1073,8 @@ QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)`,
                   </button>
                   <button
                     onClick={() => setInput('quote 10k #10 envelopes 1/0')}
-                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all">
+                    className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
+                  >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
                         <span className="text-xl">✉️</span>
