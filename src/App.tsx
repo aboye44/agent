@@ -367,7 +367,7 @@ if needs_folding:
 
 print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
 
-# === PRICING MULTIPLIER (updated ladders) ===
+# === PRICING MULTIPLIER (updated retail-competitive ladders) ===
 if product_type == "booklet":
     if qty <= 250:
         multiplier = 4.00
@@ -392,7 +392,7 @@ elif product_type in ["postcard", "flyer"]:
         multiplier = 3.30
     elif qty <= 10000:
         multiplier = 3.00
-    elif qty <= 14999:
+    elif qty <= 15000:
         multiplier = 2.50
     else:
         multiplier = 2.20
@@ -428,14 +428,10 @@ else:
         multiplier = 3.30
     elif qty <= 10000:
         multiplier = 3.00
-    elif qty <= 14999:
+    elif qty <= 15000:
         multiplier = 2.50
     else:
         multiplier = 2.20
-
-# Safety: enforce correct booklet tier at critical breakpoints
-if product_type == "booklet" and 251 <= qty <= 500:
-    multiplier = 3.00
 
 quote = total_cost * multiplier
 
