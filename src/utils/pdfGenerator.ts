@@ -2,8 +2,10 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { QuoteResult } from '../types/quote';
 
-interface PDFOptions {
+export interface PDFOptions {
   customerName?: string;
+  customNotes?: string;
+  jobName?: string;
 }
 
 // Professional color palette
@@ -164,7 +166,15 @@ export async function generateEstimatePDF(
   if (specs.productType === 'flyer') productName = 'flyers';
   if (specs.productType === 'letter') productName = 'letters';
 
-  doc.text(`${size} ${colorDesc} ${productName}`, 108, yPos + 10);
+  let jobYPos = yPos + 10;
+  doc.text(`${size} ${colorDesc} ${productName}`, 108, jobYPos);
+
+  if (options.jobName) {
+    jobYPos += 4;
+    doc.setTextColor(...COLORS.gray);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Job: ${options.jobName}`, 108, jobYPos);
+  }
 
   yPos += 28;
 
@@ -351,6 +361,34 @@ export async function generateEstimatePDF(
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
+
+  // ==========================================
+  // CUSTOM NOTES (if provided)
+  // ==========================================
+
+  if (options.customNotes) {
+    doc.setDrawColor(...COLORS.lightGray);
+    doc.setFillColor(...COLORS.white);
+    doc.roundedRect(15, yPos, 180, 'auto', 2, 2, 'FD');
+
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('NOTES', 18, yPos + 5);
+
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.dark);
+    doc.setFont('helvetica', 'normal');
+
+    const noteLines = options.customNotes.split('\n');
+    let noteY = yPos + 10;
+    for (const line of noteLines) {
+      doc.text(line, 18, noteY);
+      noteY += 4;
+    }
+
+    yPos = noteY + 5;
+  }
 
   // ==========================================
   // FOOTER

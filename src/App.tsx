@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Copy, RefreshCw, User, Download } from 'lucide-react';
+import { Send, Sparkles, Copy, RefreshCw, User, Download, Edit3 } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 import { SPEC_PARSER_PROMPT, parseSpecsFromResponse } from './utils/specParser';
 import { QuoteResult } from './types/quote';
-import { generateEstimatePDF } from './utils/pdfGenerator';
+import { generateEstimatePDF, PDFOptions } from './utils/pdfGenerator';
 
 type ChatMsg = {
   id?: string | number;
@@ -22,6 +22,11 @@ export default function App() {
   const latestQuoteRef = useRef<QuoteResult | null>(null); // Use ref to always have latest value
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // PDF edit mode
+  const [pdfEditMode, setPdfEditMode] = useState(false);
+  const [pdfCustomNotes, setPdfCustomNotes] = useState('');
+  const [pdfJobName, setPdfJobName] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('chatmpa-history');
@@ -93,6 +98,22 @@ export default function App() {
         apiKey,
         dangerouslyAllowBrowser: true
       });
+
+      // Check if this is a PDF edit request (when edit mode is on)
+      const isPdfEditRequest = pdfEditMode && latestQuoteRef.current &&
+        /\b(change|update|set|add|edit|modify|remove)\b/i.test(currentInput);
+
+      if (isPdfEditRequest) {
+        // Handle PDF edits
+        const editResponse = await handlePdfEdit(currentInput);
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: editResponse,
+          timestamp: new Date().toISOString()
+        }]);
+        setIsLoading(false);
+        return;
+      }
 
       // Check if this is a quote request
       const isQuoteRequest = /\b(quote|price|cost|how much)\b/i.test(currentInput);
@@ -279,6 +300,56 @@ export default function App() {
     navigator.clipboard.writeText(text);
   };
 
+  const handlePdfEdit = async (editRequest: string): Promise<string> => {
+    const lower = editRequest.toLowerCase();
+
+    // Parse customer name changes
+    if (lower.includes('customer') && (lower.includes('change') || lower.includes('set') || lower.includes('update'))) {
+      const nameMatch = editRequest.match(/(?:customer|name).*?(?:to|:)\s*["']?([^"'\n]+)["']?/i);
+      if (nameMatch) {
+        const newName = nameMatch[1].trim();
+        setCustomerName(newName);
+        return `✅ Updated customer name to "${newName}"`;
+      }
+    }
+
+    // Parse job name changes
+    if (lower.includes('job') && lower.includes('name')) {
+      const nameMatch = editRequest.match(/job name.*?(?:to|:)\s*["']?([^"'\n]+)["']?/i);
+      if (nameMatch) {
+        const newJobName = nameMatch[1].trim();
+        setPdfJobName(newJobName);
+        return `✅ Set job name to "${newJobName}"`;
+      }
+    }
+
+    // Parse notes additions
+    if (lower.includes('note') || lower.includes('add')) {
+      const noteMatch = editRequest.match(/(?:note|add).*?(?::|saying|that|says)\s*["']?([^"'\n]+)["']?/i);
+      if (noteMatch) {
+        const newNote = noteMatch[1].trim();
+        setPdfCustomNotes(prevNotes =>
+          prevNotes ? `${prevNotes}\n• ${newNote}` : `• ${newNote}`
+        );
+        return `✅ Added note: "${newNote}"`;
+      }
+    }
+
+    // Clear notes
+    if (lower.includes('clear') && lower.includes('note')) {
+      setPdfCustomNotes('');
+      return `✅ Cleared all notes`;
+    }
+
+    // Clear job name
+    if (lower.includes('clear') && lower.includes('job')) {
+      setPdfJobName('');
+      return `✅ Cleared job name`;
+    }
+
+    return `I can help you edit the PDF estimate. Try:\n• "Change customer name to Acme Corp"\n• "Add a note: Rush delivery required"\n• "Set job name to Spring 2024 Campaign"\n• "Clear notes"`;
+  };
+
   const handleDownloadPDF = async () => {
     // Use ref to get the absolute latest quote (refs don't have stale closure issues)
     const quoteToExport = latestQuoteRef.current;
@@ -295,9 +366,13 @@ export default function App() {
     });
 
     try {
-      await generateEstimatePDF(quoteToExport, {
+      const pdfOptions: PDFOptions = {
         customerName: customerName.trim() || undefined,
-      });
+        customNotes: pdfCustomNotes.trim() || undefined,
+        jobName: pdfJobName.trim() || undefined,
+      };
+
+      await generateEstimatePDF(quoteToExport, pdfOptions);
     } catch (error) {
       console.error('PDF generation error:', error);
       alert('Error generating PDF. Please try again.');
@@ -330,6 +405,19 @@ export default function App() {
               onChange={(e) => setCustomerName(e.target.value)}
               className="px-3 py-2 text-sm bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-500 rounded-lg focus:outline-none focus:border-blue-500 transition-all w-48"
             />
+            <button
+              onClick={() => setPdfEditMode(!pdfEditMode)}
+              disabled={!latestQuoteResult}
+              className={`px-4 py-2 text-sm font-medium rounded-xl transition-all flex items-center gap-2 ${
+                pdfEditMode
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
+              } disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed`}
+              title={!latestQuoteResult ? 'Generate a quote first' : pdfEditMode ? 'PDF edit mode: ON' : 'PDF edit mode: OFF'}
+            >
+              <Edit3 className="w-4 h-4" />
+              {pdfEditMode ? 'Edit ON' : 'Edit'}
+            </button>
             <button
               onClick={handleDownloadPDF}
               disabled={!latestQuoteResult}
