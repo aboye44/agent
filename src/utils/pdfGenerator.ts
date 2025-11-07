@@ -44,13 +44,46 @@ export async function generateEstimatePDF(
   // HEADER
   // ==========================================
 
-  // Logo area (left)
-  doc.setFillColor(...COLORS.lightGray);
-  doc.roundedRect(15, yPos - 5, 50, 18, 2, 2, 'F');
-  doc.setFontSize(11);
-  doc.setTextColor(...COLORS.primary);
-  doc.setFont('helvetica', 'bold');
-  doc.text('MPA', 40, yPos + 5, { align: 'center' });
+  // Logo area (left) - Load and add MPA logo
+  try {
+    const logoImg = new Image();
+    logoImg.src = '/mpa-logo.png';
+    await new Promise((resolve, reject) => {
+      logoImg.onload = resolve;
+      logoImg.onerror = reject;
+    });
+
+    // Calculate dimensions to fit in box without stretching
+    const maxWidth = 50;
+    const maxHeight = 18;
+    const imgAspect = logoImg.width / logoImg.height;
+    const boxAspect = maxWidth / maxHeight;
+
+    let logoWidth, logoHeight;
+    if (imgAspect > boxAspect) {
+      // Image is wider than box - constrain by width
+      logoWidth = maxWidth;
+      logoHeight = maxWidth / imgAspect;
+    } else {
+      // Image is taller than box - constrain by height
+      logoHeight = maxHeight;
+      logoWidth = maxHeight * imgAspect;
+    }
+
+    // Center in box
+    const logoX = 15 + (maxWidth - logoWidth) / 2;
+    const logoY = yPos - 5 + (maxHeight - logoHeight) / 2;
+
+    doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+  } catch (error) {
+    // Fallback if logo fails to load
+    doc.setFillColor(...COLORS.lightGray);
+    doc.roundedRect(15, yPos - 5, 50, 18, 2, 2, 'F');
+    doc.setFontSize(11);
+    doc.setTextColor(...COLORS.primary);
+    doc.setFont('helvetica', 'bold');
+    doc.text('MPA', 40, yPos + 5, { align: 'center' });
+  }
 
   // Company info
   doc.setFontSize(8);
@@ -117,8 +150,6 @@ export async function generateEstimatePDF(
   if (specs.productType === 'letter') productName = 'letters';
 
   doc.text(`${size} ${colorDesc} ${productName}`, 108, yPos + 10);
-  doc.setTextColor(...COLORS.gray);
-  doc.text(`Stock: ${stock.name}`, 108, yPos + 15);
 
   yPos += 28;
 
@@ -305,57 +336,6 @@ export async function generateEstimatePDF(
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
-
-  // ==========================================
-  // PRODUCTION DETAILS & TERMS
-  // ==========================================
-
-  // Production Details box
-  doc.setDrawColor(...COLORS.lightGray);
-  doc.setFillColor(...COLORS.white);
-  doc.roundedRect(15, yPos, 85, 30, 2, 2, 'FD');
-
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.primary);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PRODUCTION DETAILS', 18, yPos + 5);
-
-  doc.setFontSize(7);
-  doc.setTextColor(...COLORS.dark);
-  doc.setFont('helvetica', 'normal');
-
-  let detailY = yPos + 10;
-  doc.text(`• Equipment: ${equipment.name}`, 18, detailY);
-  detailY += 4;
-  doc.text(`• Stock: ${stock.name}`, 18, detailY);
-  detailY += 4;
-  if (result.imposition.upCount > 1) {
-    doc.text(`• Imposition: ${result.imposition.upCount}-up`, 18, detailY);
-    detailY += 4;
-  }
-  doc.text(`• Paper: $${costs.paperCost.toFixed(2)} | Clicks: $${costs.clickCost.toFixed(2)}`, 18, detailY);
-
-  // Terms box
-  doc.setFillColor(...COLORS.white);
-  doc.roundedRect(105, yPos, 90, 30, 2, 2, 'FD');
-
-  doc.setFontSize(9);
-  doc.setTextColor(...COLORS.primary);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TERMS & NOTES', 108, yPos + 5);
-
-  doc.setFontSize(7);
-  doc.setTextColor(...COLORS.dark);
-  doc.setFont('helvetica', 'normal');
-
-  let termY = yPos + 10;
-  doc.text('• Estimate valid 14 days', 108, termY);
-  termY += 4;
-  doc.text('• Postage billed at actuals, funded prior to drop', 108, termY);
-  termY += 4;
-  doc.text('• Production starts after proof approval', 108, termY);
-
-  yPos += 38;
 
   // ==========================================
   // FOOTER
