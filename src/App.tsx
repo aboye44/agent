@@ -19,6 +19,7 @@ export default function App() {
   const [autoScroll, setAutoScroll] = useState(true);
   const [customerName, setCustomerName] = useState('');
   const [latestQuoteResult, setLatestQuoteResult] = useState<QuoteResult | null>(null);
+  const latestQuoteRef = useRef<QuoteResult | null>(null); // Use ref to always have latest value
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -171,8 +172,14 @@ export default function App() {
             const result = calculateQuote(specs);
             const formattedQuote = formatQuote(result);
 
-            // Store the quote result for PDF generation
+            // Store the quote result for PDF generation (both state and ref)
             setLatestQuoteResult(result);
+            latestQuoteRef.current = result;
+            console.log('✅ Quote calculated and stored:', {
+              quantity: result.specs.quantity,
+              product: result.specs.productType,
+              quote: result.quote
+            });
 
             setMessages(prev =>
               prev.map(msg =>
@@ -273,13 +280,22 @@ export default function App() {
   };
 
   const handleDownloadPDF = async () => {
-    if (!latestQuoteResult) {
+    // Use ref to get the absolute latest quote (refs don't have stale closure issues)
+    const quoteToExport = latestQuoteRef.current;
+
+    if (!quoteToExport) {
       alert('No quote available to download. Please generate a quote first.');
       return;
     }
 
+    console.log('📄 Generating PDF for quote:', {
+      quantity: quoteToExport.specs.quantity,
+      product: quoteToExport.specs.productType,
+      quote: quoteToExport.quote
+    });
+
     try {
-      await generateEstimatePDF(latestQuoteResult, {
+      await generateEstimatePDF(quoteToExport, {
         customerName: customerName.trim() || undefined,
       });
     } catch (error) {
