@@ -106,7 +106,13 @@ export default function App() {
       let recentMessages = [];
       if (isQuoteRequest || needsDeepContext) {
         const contextDepth = needsDeepContext ? 5 : 3;
-        recentMessages = messages.slice(-contextDepth).map(msg => ({ 
+        // Filter out any thinking indicator messages and only include valid message pairs
+        const validMessages = messages.filter(msg => 
+          msg.content && 
+          msg.content !== '🔄 Calculating your quote...' &&
+          msg.content.trim().length > 0
+        );
+        recentMessages = validMessages.slice(-contextDepth).map(msg => ({ 
           role: msg.role, 
           content: msg.content 
         }));
@@ -964,13 +970,35 @@ if qa_checks_passed < qa_checks_total:
         ));
       });
 
-      await stream.finalMessage();
+      stream.on('error', (error) => {
+        console.error('Stream error:', error);
+        throw error;
+      });
+
+      const finalMessage = await stream.finalMessage();
+      
+      // Ensure we have the complete response
+      if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
+        const completeText = finalMessage.content
+          .filter(block => block.type === 'text')
+          .map(block => block.text)
+          .join('');
+        
+        if (completeText && completeText !== fullResponse) {
+          setMessages(prev => prev.map(msg => 
+            msg.id === assistantMessageId
+              ? { ...msg, content: completeText }
+              : msg
+          ));
+        }
+      }
 
     } catch (err) {
       console.error('Error:', err);
+      console.error('Error details:', JSON.stringify(err, null, 2));
       const errorMessage = {
         role: 'assistant',
-        content: `⚠️ Error: ${err.message || 'Unable to process your request. Please try again.'}`,
+        content: `⚠️ Error: ${err.message || err.error?.message || 'Unable to process your request. Please try again.'}`,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
