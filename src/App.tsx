@@ -139,7 +139,7 @@ export default function App() {
         temperature: 0,
         betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
         tool_choice: { type: 'auto' },
-        tools: [{ type: 'code_execution_20250825' }],
+        tools: [{ type: 'code_execution_20250825', name: 'bash_code_execution' }],
 
         // Pass the user's latest raw text into Python as job_text (so EDDM/mailing detection works)
         system: [
