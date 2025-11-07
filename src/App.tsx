@@ -604,24 +604,24 @@ if is_envelope:
         press = "P-05 Versant B&W"
         click_rate = 0.0080
     if debug_mode:
-        print(f"Device: {press}")
+        print("Device: " + press)
 elif "1/0" in color or "1/1" in color:
     press = "P-06 Nuvera B&W"
     click_rate = 0.0027
     if debug_mode:
-        print(f"Device: {press}")
+        print("Device: " + press)
 else:
     press = "P-01 Iridesse Color"
     click_rate = 0.0416
     if debug_mode:
-        print(f"Device: {press}")
+        print("Device: " + press)
 
 # === FLYER DEFAULT STOCK ===
 if is_flyer and "stock_cost_per_sheet" not in locals():
     stock_cost_per_sheet = 0.0505
     stock_name = "Endurance 100# Gloss Text (13×19)"
     if debug_mode:
-        print(f"Stock: {stock_name} @ ${stock_cost_per_sheet:.4f}/sheet (default)")
+        print("Stock: " + stock_name + " @ $" + format(stock_cost_per_sheet, '.4f') + "/sheet (default)")
 
 # === IMPOSITION ===
 if product_type in ["postcard", "flyer", "brochure"]:
@@ -631,7 +631,7 @@ if product_type in ["postcard", "flyer", "brochure"]:
     orient2 = math.floor(13 / live_height) * math.floor(19 / live_width)
     up_count = max(orient1, orient2)
     if debug_mode:
-        print(f"Imposition: {up_count}-up")
+        print("Imposition: " + str(up_count) + "-up")
 elif product_type == "envelope":
     up_count = 1
     if debug_mode:
@@ -655,9 +655,9 @@ if is_letter:
     
     press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("letter", qty, effective_up)
     if debug_mode:
-        print(f"Paper path: {paper_path}")
-        print(f"Spoilage: {spoilage_pct}")
-        print(f"Press Sheets: {press_sheets}")
+        print("Paper path: " + paper_path)
+        print("Spoilage: " + spoilage_pct)
+        print("Press Sheets: " + str(press_sheets))
 
 # === BOOKLET WITH MAKEREADY ===
 if is_booklet:
@@ -666,7 +666,7 @@ if is_booklet:
     
     sheets_per_booklet = 1 + (total_pages - 4) / 4
     if sheets_per_booklet != int(sheets_per_booklet):
-        raise Exception(f"❌ Invalid page count: {total_pages}")
+        raise Exception("❌ Invalid page count: " + str(total_pages))
     
     press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("booklet", qty, pages=total_pages)
     cover_sheets = math.ceil(qty * 1 * spoilage_factor)
@@ -674,10 +674,10 @@ if is_booklet:
     cover_sheets_with_makeready = cover_sheets + 50
     
     if debug_mode:
-        print(f"Pages: {total_pages}")
-        print(f"Cover sheets (+50 makeready): {cover_sheets_with_makeready}")
-        print(f"Interior sheets: {interior_sheets}")
-        print(f"Spoilage: {spoilage_pct}")
+        print("Pages: " + str(total_pages))
+        print("Cover sheets (+50 makeready): " + str(cover_sheets_with_makeready))
+        print("Interior sheets: " + str(interior_sheets))
+        print("Spoilage: " + spoilage_pct)
 
 # === CANONICAL SPOILAGE (non-letter, non-booklet) ===
 if not is_letter and not is_booklet:
@@ -687,8 +687,8 @@ if not is_letter and not is_booklet:
         up_count=up_count if product_type in ["postcard", "flyer", "brochure"] else None
     )
     if debug_mode:
-        print(f"Spoilage: {spoilage_pct}")
-        print(f"Press Sheets: {press_sheets}")
+        print("Spoilage: " + spoilage_pct)
+        print("Press Sheets: " + str(press_sheets))
 
 # === COST CALCULATION ===
 if is_booklet:
@@ -716,7 +716,7 @@ if is_booklet:
     finishing_cost = base_finishing * (1 - discount)
     
     if debug_mode and discount > 0:
-        print(f"Finishing volume discount: {discount*100:.0f}%")
+        print("Finishing volume discount: " + str(int(discount*100)) + "%")
     
     total_cost = paper_cost + click_cost + finishing_cost
     
@@ -784,30 +784,30 @@ if quote < shop_minimum:
     quote = shop_minimum
     shop_minimum_met = True
     if debug_mode:
-        print(f"⚠️ Shop minimum applied: ${shop_minimum:.2f}")
+        print("⚠️ Shop minimum applied: $" + format(shop_minimum, '.2f'))
 
 margin_pct = ((quote - total_cost) / quote) * 100
 
 # Always print these (not debug-gated)
-print(f"Quote: ${quote:.2f}")
-print(f"\\nProduction:")
-print(f"* Equipment: {press}")
+print("Quote: $" + format(quote, '.2f'))
+print("\\nProduction:")
+print("* Equipment: " + press)
 if 'stock_name' in locals():
-    print(f"* Stock: {stock_name}")
+    print("* Stock: " + stock_name)
 if product_type in ["postcard", "flyer", "brochure"]:
-    print(f"* Imposition: {up_count}-up")
-print(f"* Press Sheets: {press_sheets} (includes {spoilage_pct} spoilage)")
-print(f"\\nCost (internal):")
-print(f"* Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
-print(f"* Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
+    print("* Imposition: " + str(up_count) + "-up")
+print("* Press Sheets: " + str(press_sheets) + " (includes " + spoilage_pct + " spoilage)")
+print("\\nCost (internal):")
+print("* Paper: $" + format(paper_cost, '.2f') + " ($" + format(paper_cost/qty, '.4f') + "/pc)")
+print("* Clicks: $" + format(click_cost, '.2f') + " ($" + format(click_cost/qty, '.4f') + "/pc)")
 if is_booklet:
-    print(f"* Stitching: ${finishing_cost:.2f} (${finishing_cost/qty:.4f}/pc)")
-    print(f"* Overhead/QC: ${overhead:.2f}")
+    print("* Stitching: $" + format(finishing_cost, '.2f') + " ($" + format(finishing_cost/qty, '.4f') + "/pc)")
+    print("* Overhead/QC: $" + format(overhead, '.2f'))
 else:
-    print(f"* Stitching: $0.00 ($0.0000/pc)")
-    print(f"* Overhead/QC: $0.00")
-print(f"* TOTAL COST: ${total_cost:.2f} (${total_cost/qty:.4f}/pc)")
-print(f"\\nQUOTE: ${quote:.2f} (${quote/qty:.4f}/pc • {multiplier}× • {margin_pct:.0f}% margin)")
+    print("* Stitching: $0.00 ($0.0000/pc)")
+    print("* Overhead/QC: $0.00")
+print("* TOTAL COST: $" + format(total_cost, '.2f') + " ($" + format(total_cost/qty, '.4f') + "/pc)")
+print("\\nQUOTE: $" + format(quote, '.2f') + " ($" + format(quote/qty, '.4f') + "/pc • " + str(multiplier) + "× • " + str(int(margin_pct)) + "% margin)")
 
 # === MAIL SERVICES OUTPUT ===
 job_text_l = job_text.lower()
@@ -927,17 +927,17 @@ else:
 print("\\n═══════════════════════════════════════════")
 print("QA SUMMARY")
 print("═══════════════════════════════════════════")
-print(f"• Device: {press}")
-print(f"• Spoilage: {spoilage_pct}")
-print(f"• Press Sheets: {press_sheets}")
-print(f"• Paper: ${paper_cost:.2f}")
-print(f"• Clicks: ${click_cost:.2f}")
+print("• Device: " + press)
+print("• Spoilage: " + spoilage_pct)
+print("• Press Sheets: " + str(press_sheets))
+print("• Paper: $" + format(paper_cost, '.2f'))
+print("• Clicks: $" + format(click_cost, '.2f'))
 if is_booklet:
-    print(f"• Finishing: ${finishing_cost:.2f}")
+    print("• Finishing: $" + format(finishing_cost, '.2f'))
 else:
-    print(f"• Finishing: $0.00")
-print(f"• GM%: {margin_pct:.0f}%")
-print(f"• Checks Passed: {qa_checks_passed}/{qa_checks_total}")
+    print("• Finishing: $0.00")
+print("• GM%: " + str(int(margin_pct)) + "%")
+print("• Checks Passed: " + str(qa_checks_passed) + "/" + str(qa_checks_total))
 print("═══════════════════════════════════════════")
 
 if qa_checks_passed < qa_checks_total:
