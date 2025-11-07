@@ -919,8 +919,19 @@ if qa_checks_passed < qa_checks_total:
 
       // Stream handlers
       let fullResponse = '';
+      console.log('Stream created, waiting for events...');
+
+      // Listen to ALL stream events for debugging
+      stream.on('streamEvent', (event: any) => {
+        console.log('Stream event:', event.type, event);
+      });
+
+      stream.on('message', (message: any) => {
+        console.log('Message event:', message);
+      });
 
       stream.on('text', (text: string) => {
+        console.log('Text event:', text);
         fullResponse += text;
         setMessages(prev =>
           prev.map(msg =>
@@ -929,8 +940,13 @@ if qa_checks_passed < qa_checks_total:
         );
       });
 
+      stream.on('contentBlock', (block: any) => {
+        console.log('Content block event:', block);
+      });
+
       // Handle content block delta for code execution output
       stream.on('contentBlockDelta', (delta: any) => {
+        console.log('Content block delta:', delta);
         if (delta.type === 'content_block_delta' && delta.delta?.type === 'text_delta') {
           fullResponse += delta.delta.text;
           setMessages(prev =>
