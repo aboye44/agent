@@ -98,16 +98,15 @@ export default function App() {
         dangerouslyAllowBrowser: true
       });
 
-      // Smart context - include MORE messages for quotes to ensure spec tracking
-      // This is CRITICAL - bot needs to see previous messages to extract specs like quantity
+      // Smart context - optimize depth based on query type
       const isQuoteRequest = /\b(quote|price|cost|how much)\b/i.test(currentInput);
-      const needsContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
+      const needsDeepContext = /\b(add|change|update|also)\b/i.test(currentInput);
       
+      // Adaptive context depth: 2-3 for simple quotes, 5 for modifications
       let recentMessages = [];
-      if (isQuoteRequest || needsContext) {
-        // Include last 5 messages (not just 3) to capture ALL specs across conversation
-        // Example: Msg1="quote 500 postcards" Msg2=(bot) Msg3="6x9" → need Msg1 context
-        recentMessages = messages.slice(-5).map(msg => ({ 
+      if (isQuoteRequest || needsDeepContext) {
+        const contextDepth = needsDeepContext ? 5 : 3;
+        recentMessages = messages.slice(-contextDepth).map(msg => ({ 
           role: msg.role, 
           content: msg.content 
         }));
@@ -117,19 +116,25 @@ export default function App() {
         role: 'user',
         content: currentInput
       });
+      
+      // Adaptive token limit: detect complex queries
+      const isComplex = /\b(booklet|fold|EDDM|mailing|mail it|throughout|debug)\b/i.test(currentInput) || 
+                        currentInput.length > 100 || 
+                        needsDeepContext;
+      const maxTokens = isComplex ? 3500 : 2200;
 
       const assistantMessageId = Date.now();
       setMessages(prev => [...prev, {
         id: assistantMessageId,
         role: 'assistant',
-        content: '',
+        content: '🔄 Calculating your quote...',
         timestamp: new Date().toISOString()
       }]);
 
       // Stream response with inline pricing knowledge
       const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4000,
+        max_tokens: maxTokens,
         temperature: 0,
         betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
         system: [
@@ -158,20 +163,7 @@ BEFORE responding to ANY message, complete this checklist:
 
 ☐ Step 4: NEVER ask for a spec that was already provided in a previous message
 
-EXAMPLE OF CORRECT BEHAVIOR:
-Message 1 (user): "quote 500 postcards"
-Your extraction: Quantity=500 ✓, Size=?, Color=?, Stock=?
-Your response: Ask for size, color, stock
-
-Message 2 (user): "6x9 4/4 14pt"  
-Your extraction: Quantity=500 ✓ (from msg 1), Size=6x9 ✓, Color=4/4 ✓, Stock=14pt ✓
-Your response: CALCULATE IMMEDIATELY (all 4 found)
-
 ════════════════════════════════════════════════════════════════
-
-⚠️ CRITICAL: CHECK CONVERSATION HISTORY ⚠️
-Before asking ANY question, check if the answer was already provided in the conversation history.
-If the user says "I already told you X" or provides information you asked for, proceed immediately.
 
 ⚠️ MANDATORY: USE PYTHON CODE FOR ALL QUOTE CALCULATIONS ⚠️
 
@@ -181,16 +173,26 @@ When user requests a quote, you MUST:
 3. Present the results from your Python calculations
 4. NEVER do arithmetic in your head - always use code
 
-⚠️ MANDATORY INTERNAL OUTPUT (NEVER OMIT) ⚠️
-This app is INTERNAL. After every quote, ALWAYS output a "Cost (internal)" section with these exact lines:
-- Paper: $X.XX ($Y.YY/pc)
-- Clicks: $X.XX ($Y.YY/pc)
-- Stitching: $X.XX ($Y.YY/pc)  [0 if not applicable]
-- Overhead/QC: $X.XX           [0 if not applicable]
-- TOTAL COST: $X.XX ($Y.YY/pc)
-Do NOT hide internal costs. Do NOT replace with a summary.
+⚠️ QUIET MODE (DEFAULT) ⚠️
 
-Always use the **multiplier computed in Python** to set the final price. Do NOT use any narrative pricing tables.
+By default, output ONLY the essential sections:
+- Production (equipment, stock, imposition, sheets)
+- Cost (internal) - paper, clicks, stitching, overhead, TOTAL COST
+- QUOTE (price, multiplier, margin)
+- Mail Services (if applicable)
+- TOTAL (Printing + Mail Services, if applicable)
+- QA SUMMARY
+
+DO NOT print intermediate calculations, reasoning, or verbose explanations UNLESS:
+- User types "debug" in their message
+- There is an error or warning to communicate
+
+If "debug" is detected in user message:
+- Print all intermediate calculations
+- Show step-by-step reasoning
+- Include detailed breakdowns
+
+Otherwise: Stay concise and focused on final output sections only.
 
 ════════════════════════════════════════════════════════════════
 ⚠️⚠️⚠️ UNIFIED PRINT/MAIL ESTIMATION LOGIC ⚠️⚠️⚠️
@@ -214,15 +216,11 @@ If non-envelope flats/booklets route to Versant → throw error
 If envelopes route to Iridesse/Nuvera → throw error
 Error text: "❌ ERROR: Invalid press routing – envelope-only device rule violated."
 
-Equipment note:
-P-07 Colormax Env: Not used at MPA (disabled)
-
 B) FLYER DEFAULT STOCK (auto-apply when stock unspecified)
 
 When product type is "flyer", "brochure", or "sheet" AND user does NOT specify a stock:
 → Default to: Endurance 100# Gloss Text (13×19) @ $0.0505/press sheet
 → Calculate imposition as 2-up with 0.25″ bleed allowance on 13×19 working area
-→ User override: if stock is explicitly provided, honor it
 
 C) CANONICAL SPOILAGE PATH - APPLY EXACTLY ONCE
 
@@ -282,702 +280,90 @@ def compute_press_sheets(product_type, qty, up_count=None, pages=None):
     
     return press_sheets, spoilage_pct, spoilage_factor
 
-⚠️ CRITICAL: Any second call to compute_press_sheets or manual spoilage calculation → throws error above
-
 D) LETTERS PAPER PATH (choose path, then compute once)
 
 For product_type == "letter" (or 8.5×11 detection):
 
 STEP 1 - Choose paper path BEFORE calling compute_press_sheets:
+- Default: pre-cut 8.5×11 @ $0.0125/sheet, effective_up = 1
+- If qty ≥ 8000: Compare paper totals (NO spoilage yet)
+  - If 11×17 2-up + $60 cheaper: effective_up = 2, per_sheet = $0.00889, cutting = $60
+  - Else: stay with pre-cut
 
-Default: pre-cut 8.5×11 @ $0.0125/sheet, effective_up = 1
-
-If qty ≥ 8000:
-  - Compare paper totals (NO spoilage yet):
-    precut_total = qty * 0.0125
-    twoup_total = ceil(qty/2) * 0.00889 + 60
-  - If twoup_total < precut_total:
-      Choose 11×17 2-up path
-      Set effective_up = 2
-      Set per_sheet_cost = 0.00889
-      Set cutting_cost = 60
-  - Else:
-      Choose pre-cut path
-      Set effective_up = 1
-      Set per_sheet_cost = 0.0125
-      Set cutting_cost = 0
-
-STEP 2 - Call compute_press_sheets ONCE with chosen effective_up:
-press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("letter", qty, effective_up)
-
-STEP 3 - Calculate costs:
-paper_cost = (press_sheets * per_sheet_cost) + cutting_cost
-sides = 1 if ("4/0" in color or "1/0" in color) else 2
-click_cost = press_sheets * sides * click_rate
-
-Print path: "Paper path: pre-cut 8.5×11" or "Paper path: 11×17 2-up + cut ($60)"
+STEP 2 - Call compute_press_sheets ONCE with chosen effective_up
+STEP 3 - Calculate costs and print path
 
 E) BOOKLET FINISHING REALISM (require pages; add makeready)
 
 When product_type == "booklet":
-
-REQUIRE total_pages. If missing → raise:
-"❌ Missing spec: total pages (including cover)"
-
-Sheets per booklet = 1 + ((total_pages - 4) / 4)
-Assert this is an integer (valid page count)
-
-Add +50 cover makeready sheets:
-- If distinct cover/text stocks: add 50 to cover_sheets
-- If "throughout" (same stock): add 50 to first stock calculation
-
-Finishing costs:
-- Stitch setup: $50.00
-- Stitch run: $0.0625/booklet
-- Overhead/QC: $100.00
-- DO NOT add brochure folding to stitched booklets unless explicitly requested
-
-Finishing volume discount on stitch_run only:
-if qty >= 10000:
-    discount = 0.20
-elif qty >= 5000:
-    discount = 0.15
-elif qty >= 1000:
-    discount = 0.10
-else:
-    discount = 0.00
-
-base_finishing = stitch_setup + (qty * stitch_run_rate) + overhead
-finishing_cost = base_finishing * (1 - discount)
+- REQUIRE total_pages (error if missing)
+- Sheets per booklet = 1 + ((total_pages - 4) / 4)
+- Add +50 cover makeready sheets
+- Finishing: $50 setup + $0.0625/booklet run + $100 overhead
+- Volume discount: 0% / 10% / 15% / 20% at <1K / 1K-5K / 5K-10K / 10K+
+- NEVER apply folding to stitched booklets
 
 F) ENVELOPES TWO-SIDED CLICKS
 
-In envelope cost calculation:
 sides = 2 if ("4/4" in color or "1/1" in color) else 1
 click_cost = press_sheets * sides * click_rate
 
 G) EDDM OVERRIDE (bundling only @ $0.035/pc)
 
-Detect EDDM via user text: "EDDM", "Every Door", "saturation routes"
+Detect EDDM via: "EDDM", "Every Door", "saturation routes"
+If EDDM:
+- Suppress S-01, S-02, S-03, S-08
+- Output: EDDM Bundling & Paperwork at $0.035/pc + postage note
+- Warn if "EDDM with addresses"
 
-If EDDM detected:
-→ Suppress S-01, S-02, S-03, S-08 (no addressing/NCOA/prep)
-→ Output ONLY:
+H) OFFSET ADVISORY FLAG
 
-Mail Services (EDDM):
-• EDDM Bundling & Paperwork: [qty × $0.035] = $___
-• Postage: USPS EDDM postage billed at actuals
+Flag when static (no VDP) and:
+- Flyers 8.5×11 (4/0 or 4/4) qty ≥ 30K
+- Postcards 6.25×9 4/4 qty ≥ 50K  
+- Booklets qty ≥ 5K
 
-Set mailing_services_total = qty * 0.035
-
-If user says "EDDM with addresses":
-→ Print warning: "⚠️ EDDM campaigns do not use addresses. Choose Marketing Mail/First-Class for addressed mail."
-
-H) OFFSET ADVISORY FLAG (advisory only; don't change price)
-
-After computing digital price, set offset_flag = True when static (no VDP) and:
-- Flyers 8.5×11 (4/0 or 4/4) qty ≥ 30,000, OR
-- Postcards 6.25×9 4/4 qty ≥ 50,000, OR
-- Booklets qty ≥ 5,000
-
-Print advisory: "💡 Recommendation: Consider offset or trade printing—digital price shown."
+Print: "💡 Recommendation: Consider offset or trade printing—digital price shown."
 
 I) PROFIT FLOORS (simplified) + QA
 
-Enforce ONLY these floors:
+Enforce ONLY:
 - Postcards/Flyers/Brochures: GM% ≥ 30%
 - Booklets: GM% ≥ 35%
 
-DO NOT compute or enforce any "services-heavy" margin logic.
-DO NOT print any services-heavy warnings.
-REMOVE entirely any services share calculations.
+NO services-heavy logic.
 
-QA SUMMARY (mandatory on ALL quotes):
-
-═══════════════════════════════════════════
-QA SUMMARY
-═══════════════════════════════════════════
-• Device: [press name]
-• Spoilage: [x%]
-• Press Sheets: [x]
-• Paper: $[xx.xx]
-• Clicks: $[xx.xx]
-• Finishing: $[xx.xx]
-• GM%: [xx%]
-• Checks Passed: [n/6]
-═══════════════════════════════════════════
-
-QA Checks (6 total):
-1. Device routing correct (envelopes→Versant only; flats/booklets→Iridesse/Nuvera)
-2. Spoilage applied once (global flag check)
-3. Paper cost calculated (> 0)
-4. Click cost calculated (> 0)
-5. GM% meets floor (30% postcards/flyers, 35% booklets)
+QA SUMMARY (mandatory, 6 checks):
+1. Device routing correct
+2. Spoilage applied once
+3. Paper cost calculated
+4. Click cost calculated
+5. GM% meets floor
 6. Shop minimum met ($75)
 
-If ANY check fails:
-→ Print explicit error
-→ DO NOT issue quote
+If ANY fail → explicit error, no quote.
 
 ════════════════════════════════════════════════════════════════
 
-⚠️ SPEC GATHERING RULES ⚠️
+⚠️ MAILING SERVICES ⚠️
 
-You need exactly 4 specs to calculate a quote:
-1. QUANTITY - "500", "10k", "1000"
-2. SIZE - "6×9", "4×6", "16 pages"
-3. COLOR - "4/4", "4/0", "1/1"
-4. STOCK - "14pt", "100# gloss", "kallima"
+Always show full printing section FIRST, then append mail services:
 
-HOW TO GATHER SPECS:
-1. Look at ALL messages (not just current message)
-2. Extract any specs you find from the ENTIRE conversation
-3. Only ask for specs you DON'T have yet
-4. Calculate immediately when you have all 4
+**EDDM:** $0.035/pc bundling + postage note
+**Addressed Mail:**
+- Postcards: $0.059/pc
+- Self-mailers: $0.109/pc
+- Letters: $0.079/pc (1 insert) + $0.01/pc per extra
 
-COMMON MISTAKE TO AVOID:
-❌ User says "quote 500 postcards" → You ask "what size?" → User says "6x9" → You ask "what quantity?"
-✅ User says "quote 500 postcards" → You ask "what size?" → User says "6x9" → You have qty=500 from earlier, so ask only for color & stock
-
-⚠️ MAILING SERVICES: When user says "add mailing" or "mail it":
-
-CRITICAL: Always show the full printing section FIRST (paper, clicks, quote).
-
-Then APPEND the appropriate mail services block:
-
-**EDDM (detected via "EDDM", "Every Door", "saturation"):**
-- One line: EDDM Bundling & Paperwork at $0.035/pc
-- Postage note: "USPS EDDM postage billed at actuals (not calculated)"
-- No S-01, S-02, S-03, S-08 (no addressing/NCOA)
-
-**Addressed Mail (product-appropriate bundles):**
-- Postcards: $0.059/pc (S-01 + S-02 + S-08)
-- Self-mailers (flyers/brochures): $0.109/pc (addressing + double tab + flats prep)
-- Letters: $0.079/pc for 1 insert, +$0.01/pc per extra insert
-- Postage note: "Postage billed at actual USPS cost (not calculated)"
-
-Finally, print: TOTAL (Printing + [Mail Services or EDDM Bundling]): $X,XXX.XX
-
-⚠️ If user says "EDDM with addresses":
-Print warning: "EDDM campaigns are non-addressed saturation mail. For addressed mail, select Marketing Mail or First-Class instead."
-
-PYTHON CALCULATION TEMPLATE (copy and modify for each quote):
-
-import math
-
-# === CAPTURE USER INPUT FOR MAIL DETECTION ===
-# Set job_text to the user's full request for mail services detection
-job_text = "quote 1000 postcards 6x9 4/4 14pt with mailing"  # REPLACE WITH ACTUAL USER INPUT
-
-# Track spoilage application globally
-spoilage_applied = False
-
-def compute_press_sheets(product_type, qty, up_count=None, pages=None):
-    """
-    Canonical spoilage function - call EXACTLY ONCE per quote.
-    Returns: (press_sheets, spoilage_pct, spoilage_factor)
-    
-    Raw sheets calculation:
-      - flats: ceil(qty / up_count)
-      - booklets: qty * (1 + (pages - 4) / 4)
-      - letters/envelopes: qty if up_count is None else ceil(qty / up_count)
-    
-    Spoilage tiers: ≤250: 5%, ≤500: 4%, ≤1000: 3%, ≤2500: 2.5%, >2500: 2%
-    """
-    global spoilage_applied
-    
-    if spoilage_applied:
-        raise Exception("❌ ERROR: Duplicate spoilage path attempted. Spoilage must be applied exactly once.")
-    
-    # Calculate raw sheets
-    if product_type in ["postcard", "flyer", "brochure"]:
-        raw_sheets = math.ceil(qty / up_count)
-    elif product_type == "booklet":
-        sheets_per_booklet = 1 + (pages - 4) / 4
-        raw_sheets = qty * sheets_per_booklet
-    elif product_type in ["letter", "envelope"]:
-        if up_count is not None and up_count > 1:
-            raw_sheets = math.ceil(qty / up_count)
-        else:
-            raw_sheets = qty
-    else:
-        raw_sheets = qty
-    
-    # Apply spoilage ONCE
-    if qty <= 250:
-        spoilage_factor = 1.05
-        spoilage_pct = "5%"
-    elif qty <= 500:
-        spoilage_factor = 1.04
-        spoilage_pct = "4%"
-    elif qty <= 1000:
-        spoilage_factor = 1.03
-        spoilage_pct = "3%"
-    elif qty <= 2500:
-        spoilage_factor = 1.025
-        spoilage_pct = "2.5%"
-    else:
-        spoilage_factor = 1.02
-        spoilage_pct = "2%"
-    
-    press_sheets = math.ceil(raw_sheets * spoilage_factor)
-    spoilage_applied = True
-    
-    return press_sheets, spoilage_pct, spoilage_factor
-
-# === INPUT PARAMETERS ===
-qty = 1000
-finished_width = 6
-finished_height = 9
-color = "4/4"  # or "4/0", "1/0", "1/1", etc
-product_type = "postcard"  # or "envelope", "booklet", "letter", "flyer", "brochure"
-
-# Detect product type
-is_envelope = product_type == "envelope"
-is_booklet = product_type == "booklet"
-is_letter = product_type == "letter" or (finished_width == 8.5 and finished_height == 11)
-is_flyer = product_type in ["flyer", "brochure", "sheet"]
-
-# === DEVICE ROUTING WITH ENFORCEMENT ===
-if is_envelope:
-    # ALL envelopes → Versant ONLY
-    if "4/4" in color or "4/0" in color:
-        press = "P-04 Versant Color"
-        click_rate = 0.0336
-    elif "1/1" in color or "1/0" in color:
-        press = "P-05 Versant B&W"
-        click_rate = 0.0080
-    else:
-        press = "P-05 Versant B&W"  # default
-        click_rate = 0.0080
-    print(f"Device: {press}")
-    
-    # Guard: ensure no Iridesse/Nuvera for envelopes
-    if "Iridesse" in press or "Nuvera" in press:
-        raise Exception("❌ ERROR: Invalid press routing – envelope-only device rule violated.")
-        
-elif "1/0" in color or "1/1" in color:
-    # B&W work → Nuvera
-    press = "P-06 Nuvera B&W"
-    click_rate = 0.0027
-    print(f"Device: {press}")
-    
-    # Guard: ensure no Versant for non-envelopes
-    if is_envelope:
-        pass  # OK for envelopes
-    elif "Versant" in press:
-        raise Exception("❌ ERROR: Invalid press routing – envelope-only device rule violated.")
-        
-else:
-    # Color flats & booklets → Iridesse
-    press = "P-01 Iridesse Color"
-    click_rate = 0.0416
-    print(f"Device: {press}")
-    
-    # Guard: ensure no Versant for non-envelopes
-    if "Versant" in press and not is_envelope:
-        raise Exception("❌ ERROR: Invalid press routing – envelope-only device rule violated.")
-
-# === FLYER DEFAULT STOCK (auto-apply) ===
-if is_flyer and "stock_cost_per_sheet" not in locals():
-    stock_cost_per_sheet = 0.0505  # Endurance 100# Gloss Text (13×19)
-    stock_name = "Endurance 100# Gloss Text (13×19)"
-    print(f"Stock: {stock_name} @ \${stock_cost_per_sheet:.4f}/sheet (default)")
-
-# === IMPOSITION ===
-if product_type in ["postcard", "flyer", "brochure"]:
-    live_width = finished_width + 0.25
-    live_height = finished_height + 0.25
-    orient1 = math.floor(13 / live_width) * math.floor(19 / live_height)
-    orient2 = math.floor(13 / live_height) * math.floor(19 / live_width)
-    up_count = max(orient1, orient2)
-    print(f"Imposition: {up_count}-up")
-elif product_type == "envelope":
-    up_count = 1
-    print("Envelopes: 1-up (no imposition)")
-
-# === LETTERS PAPER PATH (choose first, compute once) ===
-if is_letter:
-    # STEP 1: Choose path before spoilage
-    effective_up = 1
-    per_sheet_cost = 0.0125
-    cutting_cost = 0
-    paper_path = "pre-cut 8.5×11"
-    
-    if qty >= 8000:
-        # Compare paper totals WITHOUT spoilage
-        precut_total = qty * 0.0125
-        twoup_total = math.ceil(qty / 2) * 0.00889 + 60
-        
-        if twoup_total < precut_total:
-            effective_up = 2
-            per_sheet_cost = 0.00889
-            cutting_cost = 60
-            paper_path = "11×17 2-up + cut ($60)"
-    
-    # STEP 2: Call spoilage once with chosen path
-    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets(
-        product_type="letter",
-        qty=qty,
-        up_count=effective_up
-    )
-    
-    print(f"Paper path: {paper_path}")
-    print(f"Spoilage: {spoilage_pct}")
-    print(f"Press Sheets: {press_sheets}")
-
-# === BOOKLET WITH MAKEREADY ===
-if is_booklet:
-    # Require total_pages
-    if "total_pages" not in locals():
-        raise Exception("❌ Missing spec: total pages (including cover)")
-    
-    # Validate page count
-    sheets_per_booklet = 1 + (total_pages - 4) / 4
-    if sheets_per_booklet != int(sheets_per_booklet):
-        raise Exception(f"❌ Invalid page count: {total_pages} does not yield whole sheets")
-    
-    # Call spoilage once
-    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets(
-        product_type="booklet",
-        qty=qty,
-        pages=total_pages
-    )
-    
-    # Calculate cover and interior sheets
-    cover_sheets = math.ceil(qty * 1 * spoilage_factor)
-    interior_sheets = math.ceil(qty * ((total_pages - 4) / 4) * spoilage_factor)
-    
-    # Add +50 makeready to cover
-    cover_sheets_with_makeready = cover_sheets + 50
-    
-    print(f"Pages: {total_pages}")
-    print(f"Sheets per booklet: {int(sheets_per_booklet)}")
-    print(f"Cover sheets (with +50 makeready): {cover_sheets_with_makeready}")
-    print(f"Interior sheets: {interior_sheets}")
-    print(f"Spoilage: {spoilage_pct}")
-
-# === CANONICAL SPOILAGE (non-letter, non-booklet) ===
-if not is_letter and not is_booklet:
-    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets(
-        product_type=product_type,
-        qty=qty,
-        up_count=up_count if product_type in ["postcard", "flyer", "brochure"] else None
-    )
-    print(f"Spoilage: {spoilage_pct}")
-    print(f"Press Sheets: {press_sheets}")
-
-# === COST CALCULATION ===
-if is_booklet:
-    # Booklet costs
-    stock_cost_cover = 0.0965  # Endurance 100# Gloss Cover
-    stock_cost_text = 0.0505   # Endurance 100# Gloss Text
-    
-    paper_cost = (cover_sheets_with_makeready * stock_cost_cover) + (interior_sheets * stock_cost_text)
-    
-    # Clicks
-    cover_sides = 2 if "4/4" in color else 1
-    interior_sides = 2 if "4/4" in color else 1
-    click_cost = (cover_sheets_with_makeready * cover_sides * click_rate) + (interior_sheets * interior_sides * click_rate)
-    
-    # Finishing with volume discount
-    stitch_setup = 50.00
-    stitch_run_rate = 0.0625
-    overhead = 100.00
-    
-    base_finishing = stitch_setup + (qty * stitch_run_rate) + overhead
-    
-    if qty >= 10000:
-        discount = 0.20
-    elif qty >= 5000:
-        discount = 0.15
-    elif qty >= 1000:
-        discount = 0.10
-    else:
-        discount = 0.00
-    
-    finishing_cost = base_finishing * (1 - discount)
-    
-    print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
-    print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
-    print(f"Stitching: \${finishing_cost:.2f} (\${finishing_cost/qty:.4f}/pc)")
-    if discount > 0:
-        print(f"Finishing volume discount: {discount*100:.0f}%")
-    
-    total_cost = paper_cost + click_cost + finishing_cost
-    
-elif is_envelope:
-    # Envelope costs
-    stock_cost_per_sheet = 0.0242  # Default Seville 24#
-    paper_cost = press_sheets * stock_cost_per_sheet
-    
-    # TWO-SIDED CLICKS for 4/4 or 1/1
-    sides = 2 if ("4/4" in color or "1/1" in color) else 1
-    click_cost = press_sheets * sides * click_rate
-    
-    total_cost = paper_cost + click_cost
-    
-    print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
-    print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
-    
-elif is_letter:
-    # Letter costs (path already chosen above)
-    paper_cost = (press_sheets * per_sheet_cost) + cutting_cost
-    
-    sides = 1 if ("4/0" in color or "1/0" in color) else 2
-    click_cost = press_sheets * sides * click_rate
-    
-    total_cost = paper_cost + click_cost
-    
-    print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
-    print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
-    
-else:
-    # Postcards/Flyers
-    paper_cost = press_sheets * stock_cost_per_sheet
-    sides = 2 if ("4/4" in color or "1/1" in color) else 1
-    click_cost = press_sheets * sides * click_rate
-    
-    total_cost = paper_cost + click_cost
-    
-    print(f"Paper: \${paper_cost:.2f} (\${paper_cost/qty:.4f}/pc)")
-    print(f"Clicks: \${click_cost:.2f} (\${click_cost/qty:.4f}/pc)")
-
-print(f"Total Cost: \${total_cost:.2f} (\${total_cost/qty:.4f}/pc)")
-
-# === PRICING MULTIPLIER ===
-if product_type == "booklet":
-    if qty <= 250:
-        multiplier = 4.00
-    elif qty <= 500:
-        multiplier = 3.00
-    elif qty <= 1000:
-        multiplier = 2.80
-    elif qty <= 2500:
-        multiplier = 2.60
-    elif qty <= 10000:
-        multiplier = 2.40
-    else:
-        multiplier = 2.20
-elif product_type in ["postcard", "flyer", "brochure"]:
-    if qty <= 250:
-        multiplier = 5.50
-    elif qty <= 500:
-        multiplier = 4.50
-    elif qty <= 1000:
-        multiplier = 3.80
-    elif qty <= 2500:
-        multiplier = 3.30
-    elif qty <= 10000:
-        multiplier = 3.00
-    elif qty <= 15000:
-        multiplier = 2.50
-    else:
-        multiplier = 2.20
-elif product_type == "envelope":
-    if qty <= 250:
-        multiplier = 5.00
-    elif qty <= 500:
-        multiplier = 4.00
-    elif qty <= 1000:
-        multiplier = 3.50
-    elif qty <= 5000:
-        multiplier = 3.00
-    else:
-        multiplier = 2.50
-elif product_type == "letter":
-    if qty <= 250:
-        multiplier = 4.50
-    elif qty <= 1000:
-        multiplier = 3.50
-    elif qty <= 5000:
-        multiplier = 3.00
-    else:
-        multiplier = 2.50
-else:
-    if qty <= 250:
-        multiplier = 5.50
-    elif qty <= 500:
-        multiplier = 4.50
-    elif qty <= 1000:
-        multiplier = 3.80
-    elif qty <= 2500:
-        multiplier = 3.30
-    elif qty <= 10000:
-        multiplier = 3.00
-    elif qty <= 15000:
-        multiplier = 2.50
-    else:
-        multiplier = 2.20
-
-quote = total_cost * multiplier
-
-# === SHOP MINIMUM ===
-shop_minimum = 75.00
-shop_minimum_met = True
-if quote < shop_minimum:
-    quote = shop_minimum
-    shop_minimum_met = True
-    print(f"⚠️ Shop minimum applied: \${shop_minimum:.2f}")
-
-margin_pct = ((quote - total_cost) / quote) * 100
-
-print(f"Multiplier: {multiplier}×")
-print(f"QUOTE: \${quote:.2f} (\${quote/qty:.4f}/pc)")
-print(f"Margin: {margin_pct:.0f}%")
-
-# === MAIL SERVICES OUTPUT (keeps printing intact) ===
-# Infer from user messages; safe default if absent
-job_text = globals().get("job_text", "")
-job_text_l = job_text.lower()
-
-# Detect mailing intent
-wants_mailing = any(k in job_text_l for k in [" mail", "with mailing", "add mailing", "mail it", "mailing"])
-is_eddm = any(k in job_text_l for k in ["eddm", "every door", "saturation route", "saturation"])
-
-mailing_services_total = 0.0
-mailing_section = ""
-
-if wants_mailing:
-    if is_eddm:
-        # EDDM: bundling only at $0.035/pc
-        bundling = qty * 0.035
-        mailing_services_total += bundling
-        mailing_section += "\\nMail Services (EDDM):\\n"
-        mailing_section += "• EDDM Bundling & Paperwork: " + format(qty, ',') + " × $0.035 = $" + format(bundling, '.2f') + "\\n"
-        mailing_section += "• Postage: USPS EDDM postage billed at actuals (not calculated)\\n"
-    else:
-        # Addressed bundles by product type
-        if product_type in ["postcard"]:
-            # Postcards: S-01 + S-02 + S-08 = $0.059/pc
-            svc = qty * 0.059
-            mailing_services_total += svc
-            mailing_section += "\\nMail Services (Addressed):\\n"
-            mailing_section += "• NCOA/CASS + Addressing + Bulk Prep: " + format(qty, ',') + " × $0.059 = $" + format(svc, '.2f') + "\\n"
-            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
-        elif product_type in ["flyer", "brochure"]:
-            # Self-mailers (flats): $0.109/pc
-            svc = qty * 0.109
-            mailing_services_total += svc
-            mailing_section += "\\nMail Services (Self-mailer):\\n"
-            mailing_section += "• Addressing + Double Tab + Flats Prep: " + format(qty, ',') + " × $0.109 = $" + format(svc, '.2f') + "\\n"
-            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
-        elif product_type == "letter" or is_letter:
-            # Letters: $0.079/pc for 1 insert, +$0.01 per extra
-            num_inserts = globals().get("num_inserts", 1)
-            base = 0.079 if num_inserts == 1 else 0.079 + 0.01 * (num_inserts - 1)
-            svc = qty * base
-            mailing_services_total += svc
-            mailing_section += "\\nMail Services (Letters):\\n"
-            mailing_section += "• NCOA + Address + Machine Insert (" + str(num_inserts) + " piece): " + format(qty, ',') + " × $" + format(base, '.3f') + " = $" + format(svc, '.2f') + "\\n"
-            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
-
-# Print mail block and combined total
-if mailing_services_total > 0:
-    print(mailing_section)
-    total_due = quote + mailing_services_total
-    label = "EDDM Bundling" if is_eddm else "Mail Services"
-    print("TOTAL (Printing + " + label + "): $" + format(total_due, ',.2f'))
-
-# Guard: EDDM with addresses warning
-if "eddm" in job_text_l and ("address" in job_text_l or "addresses" in job_text_l):
-    print("\\n⚠️ EDDM campaigns are non-addressed saturation mail. "
-          "For addressed mail, select Marketing Mail or First-Class instead.")
-
-# === OFFSET ADVISORY FLAG ===
-is_static = True  # Set to False if VDP detected
-offset_flag = False
-
-if is_static:
-    if product_type in ["flyer", "brochure"] and finished_width == 8.5 and finished_height == 11:
-        if ("4/0" in color or "4/4" in color) and qty >= 30000:
-            offset_flag = True
-            print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
-    elif product_type == "postcard" and finished_width == 6.25 and finished_height == 9:
-        if "4/4" in color and qty >= 50000:
-            offset_flag = True
-            print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
-    elif product_type == "booklet" and qty >= 5000:
-        offset_flag = True
-        print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
-
-# === PROFIT FLOORS (SIMPLIFIED - NO SERVICES-HEAVY) ===
-gm_floor_met = True
-
-if product_type in ["postcard", "flyer", "brochure"]:
-    if margin_pct < 30:
-        print("\\n⚠️ WARNING: GM below 30% floor for postcards/flyers")
-        gm_floor_met = False
-elif product_type == "booklet":
-    if margin_pct < 35:
-        print("\\n⚠️ WARNING: GM below 35% floor for booklets")
-        gm_floor_met = False
-
-# === QA SUMMARY (6 CHECKS) ===
-qa_checks_total = 6
-qa_checks_passed = 0
-
-# Check 1: Device routing correct
-device_correct = True
-if is_envelope:
-    if press not in ["P-04 Versant Color", "P-05 Versant B&W"]:
-        device_correct = False
-        print("\\n❌ QA FAIL: Envelope routed to non-Versant device")
-else:
-    if "Versant" in press:
-        device_correct = False
-        print("\\n❌ QA FAIL: Non-envelope routed to Versant")
-
-if device_correct:
-    qa_checks_passed += 1
-
-# Check 2: Spoilage applied once
-if spoilage_applied:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Spoilage not applied")
-
-# Check 3: Paper cost calculated
-if paper_cost > 0:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Paper cost is zero")
-
-# Check 4: Click cost calculated
-if click_cost > 0:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Click cost is zero")
-
-# Check 5: GM floor met
-if gm_floor_met:
-    qa_checks_passed += 1
-
-# Check 6: Shop minimum met
-if quote >= shop_minimum:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Quote below shop minimum")
-
-print("\\n═══════════════════════════════════════════")
-print("QA SUMMARY")
-print("═══════════════════════════════════════════")
-print(f"• Device: {press}")
-print(f"• Spoilage: {spoilage_pct}")
-print(f"• Press Sheets: {press_sheets}")
-print(f"• Paper: \${paper_cost:.2f}")
-print(f"• Clicks: \${click_cost:.2f}")
-if is_booklet:
-    print(f"• Finishing: \${finishing_cost:.2f}")
-else:
-    print(f"• Finishing: \$0.00")
-print(f"• GM%: {margin_pct:.0f}%")
-print(f"• Checks Passed: {qa_checks_passed}/{qa_checks_total}")
-print("═══════════════════════════════════════════")
-
-if qa_checks_passed < qa_checks_total:
-    print("\\n❌ QA FAILED - Quote cannot be issued with failed checks")
-    raise Exception("QA checks failed - see above for details")
+Print: TOTAL (Printing + [Mail Services/EDDM Bundling]): $X,XXX.XX`,
+            cache_control: { type: 'ephemeral' }
+          },
+          {
+            type: 'text',
+            text: `
+════════════════════════════════════════════════════════════════
+REFERENCE: STOCK DATABASE & EQUIPMENT
+════════════════════════════════════════════════════════════════
 
 === EQUIPMENT & CLICK COSTS ===
 
@@ -991,26 +377,6 @@ ENVELOPE PRESSES:
 - P-07 Colormax Env: Not used at MPA (disabled)
 
 === COMPLETE MPA STOCK DATABASE (All 99 SKUs) ===
-
-# LETTER/COPY PAPER SELECTION LOGIC
-When quoting letters (8.5×11), follow this decision tree:
-
-1. IF user explicitly specifies a stock (e.g., "100# gloss text", "Endurance 100# gloss", "premium paper"):
-   → HONOR their request - use the specified stock
-   → Some letters require premium paper (letterhead, marketing, certificates)
-   → Example: "letters on 100# gloss text" → Use SKU 10735823 @ $0.0505
-   
-2. IF user gives generic request (e.g., "letters 4/0", "letters on white paper", "60# white text"):
-   → DEFAULT to: Williamsburg 60# Smooth Offset @ $0.0125/sheet (SKU 63352)
-   → Pre-cut to 8.5×11 (no waste, no cutting labor)
-   → Best total cost for standard letter printing
-   
-3. The system KNOWS about cheaper 11×17 2-up options (SKU 66020 @ $0.00445/letter, SKU 66022 @ $0.01225/letter)
-   BUT these require ~$60 in cutting labor which makes them MORE expensive than pre-cut Williamsburg
-   
-4. Text stocks (80#-100# gloss/silk) are valid for BOTH:
-   - Booklet interiors (standard use)
-   - Premium letters (when explicitly requested)
 
 LETTER PAPER STOCKS:
 SKU 63352: Williamsburg 60# Smooth @ $0.0125 (8.5×11) ⭐ DEFAULT
@@ -1117,393 +483,470 @@ SKU 087436N: Waverly Hall 70# A-9 @ $0.11046
 SKU 087430N: Waverly Hall 70# #4 Baronial @ $0.05503
 SKU 087548N: Waverly Hall 70# A-7 Soft Ivory @ $0.06692
 
-SPECIALTY STOCKS:
-Poly/Synthetic:
-SKU 65177: Kernowprint 14mil Matte Poly @ $1.12 (12×18)
-SKU 65175: Kernowprint 10mil Matte Poly @ $0.86 (12×18)
-SKU 105314: CoverIt 5mil Clear Gloss @ $0.01149 (8.5×11, binding)
-SKU 105466: CoverIt 10mil Clear Gloss @ $0.03185 (11×17, binding)
-
-Index/Tag:
-SKU 63219: Springhill 110# Index @ $0.07225 (11×17)
-SKU 73606: Springhill 125# Tag Manila @ $0.32189 (24×36)
-SKU 054090N: Excel 7.5pt Carbonless Tag @ $0.08935 (8.5×11)
-
-Carbonless:
-SKU 051304N: Excel 2pt White/Pink @ $0.03544 (8.5×11)
-
-Boxes:
-SKU 320510: Kraft Box 12.25×9.25×12.5 @ $0.0217
-SKU RD4933: Grey Box 4.75×3.5×2 @ $0.11245
-SKU RD4932: Mist Grey Box 7×3.5 @ $0.11684
-
-Film:
-SKU 1.10026E+11: D&K 3mil Laminating Film @ $207.58 (12" roll)
-
-=== PAPER SELECTION RULES ===
-
-⚠️ STOCK CONVERSION TABLE (Points ↔ Pound Weight):
-When user requests by POINT thickness, convert to POUND WEIGHT equivalent:
+=== STOCK CONVERSION TABLE (Points ↔ Pound Weight) ===
 
 COVER STOCK CONVERSIONS:
-- 10pt cover = 80# cover (we stock: Endurance 80# Gloss @ $0.0951)
-- **12pt cover = 100# cover** ✅ WE STOCK THIS (Endurance 100# Gloss @ $0.0965 OR Kallima 14pt @ $0.123)
-- 14pt cover = 120# cover (we stock: Kallima 14pt C2S @ $0.123 - most popular!)
-- 16pt cover = 130# cover (we stock: Endurance 130# Silk @ $0.1331)
+- 10pt cover = 80# cover (Endurance 80# Gloss @ $0.0951)
+- 12pt cover = 100# cover (Endurance 100# Gloss @ $0.0965 OR Kallima 14pt @ $0.123)
+- 14pt cover = 120# cover (Kallima 14pt C2S @ $0.123)
+- 16pt cover = 130# cover (Endurance 130# Silk @ $0.1331)
 
 TEXT STOCK CONVERSIONS:
-- 60# text = standard text weight (we stock: Endurance 80# @ $0.0408)
-- 80# text = 80# text (exact match - Endurance 80# Gloss @ $0.0408)
-- 100# text = 100# text (exact match - Endurance 100# Gloss @ $0.0505)
+- 60# text = standard (Endurance 80# @ $0.0408)
+- 80# text = Endurance 80# Gloss @ $0.0408
+- 100# text = Endurance 100# Gloss @ $0.0505
 
-WHEN USER REQUESTS BY POINTS:
-1. Check conversion table above
-2. If exact equivalent exists in stock → USE IT (no disclaimer needed)
-3. Only if no equivalent exists → offer estimated/alternative options
+=== PAPER SELECTION DEFAULTS ===
 
-EXAMPLE:
-User: "quote 1000 postcards 12pt gloss"
-System thinks: "12pt = 100# cover = Endurance 100# Gloss @ $0.0965 ✅ WE HAVE THIS!"
-System responds: [Calculate quote normally with 100# Gloss @ $0.0965]
-System notes: "Using Endurance 100# Gloss Cover (12pt equivalent)"
-
-FOR LETTERS (8.5×11):
-→ DEFAULT: SKU 63352 (Williamsburg 60# @ $0.0125) unless user explicitly requests premium
-→ HONOR explicit requests for premium stocks (e.g., "100# gloss text")
-
-FOR POSTCARDS/FLYERS:
-→ Default: SKU 1.10594E+11 (Kallima 14pt @ $0.123) - most popular
-→ Budget: SKU 10735784 (Endurance 100# Gloss @ $0.0965)
-→ Premium: SKU 20033067 (Endurance 130# Silk @ $0.1331)
-
-FOR BOOKLET COVERS:
-→ Default: SKU 10735784 (Endurance 100# Gloss @ $0.0965)
-
-FOR BOOKLET TEXT:
-→ Default: SKU 10735823 (Endurance 100# Gloss @ $0.0505)
-→ Budget: SKU 10735824 (Endurance 80# Gloss @ $0.0408)
-
-FOR ENVELOPES:
-→ #10 standard: SKU 10766056 (Seville 24# @ $0.0242)
-→ #10 window: SKU 083688N (DigiMAC 24# @ $0.03316)
-→ 6×9 booklet: SKU 20001992 (Seville 24# @ $0.027)
+LETTERS (8.5×11): SKU 63352 (Williamsburg 60# @ $0.0125)
+POSTCARDS/FLYERS: SKU 1.10594E+11 (Kallima 14pt @ $0.123)
+BOOKLET COVERS: SKU 10735784 (Endurance 100# Gloss @ $0.0965)
+BOOKLET TEXT: SKU 10735823 (Endurance 100# Gloss @ $0.0505)
+ENVELOPES #10: SKU 10766056 (Seville 24# @ $0.0242)
 
 === PRICING TIERS ===
 
 POSTCARDS/FLYERS (7-tier):
-- 1-250: 5.50×
-- 251-500: 4.50×
-- 501-1,000: 3.80×
-- 1,001-2,500: 3.30×
-- 2,501-10,000: 3.00×
-- 10,001-15,000: 2.50×
-- 15,000+: 2.20×
+1-250: 5.50×, 251-500: 4.50×, 501-1K: 3.80×, 1K-2.5K: 3.30×, 2.5K-10K: 3.00×, 10K-15K: 2.50×, 15K+: 2.20×
 
 ENVELOPES (5-tier):
-- 1-250: 5.00×
-- 251-500: 4.00×
-- 501-1,000: 3.50×
-- 1,001-5,000: 3.00×
-- 5,001+: 2.50×
+1-250: 5.00×, 251-500: 4.00×, 501-1K: 3.50×, 1K-5K: 3.00×, 5K+: 2.50×
 
 BOOKLETS (6-tier):
-- 1-250: 4.00×
-- 251-500: 3.00× ⭐ KEY CORRECTION
-- 501-1,000: 2.80×
-- 1,001-2,500: 2.60×
-- 2,501-10,000: 2.40×
-- 10,001+: 2.20×
+1-250: 4.00×, 251-500: 3.00×, 501-1K: 2.80×, 1K-2.5K: 2.60×, 2.5K-10K: 2.40×, 10K+: 2.20×
 
 LETTERS (4-tier):
-- 1-250: 4.50×
-- 251-1,000: 3.50×
-- 1,001-5,000: 3.00×
-- 5,001+: 2.50×
+1-250: 4.50×, 251-1K: 3.50×, 1K-5K: 3.00×, 5K+: 2.50×
 
-BOOKLET FINISHING COSTS (based on November 2025 corrections):
+SHOP MINIMUM: $75.00`,
+            cache_control: { type: 'ephemeral' }
+          },
+          {
+            type: 'text',
+            text: `
+════════════════════════════════════════════════════════════════
+PYTHON CALCULATION TEMPLATE
+════════════════════════════════════════════════════════════════
 
-SADDLE STITCHING:
-- Setup: $50.00 (StitchLiner makeready, includes QC)
-- Run cost: $0.0625/booklet ($75/hr labor ÷ 1,200 pcs/hr)
-- Formula: $50 + (Qty × $0.0625)
+import math
 
-FOLDING (if quarter-fold or similar):
-- Setup: $40.00 (folder adjustment, makeready)
-- Run cost: $0.075/pc ($60/hr labor ÷ 800 pcs/hr)
-- Formula: $40 + (Qty × $0.075)
+# === CAPTURE USER INPUT FOR MAIL DETECTION ===
+job_text = "quote 1000 postcards 6x9 4/4 14pt with mailing"  # REPLACE WITH ACTUAL USER INPUT
 
-OVERHEAD/QC (mandatory for all booklets):
-- Base: $100.00 (packaging, final inspection, boxing, staging)
+# Track spoilage application globally
+spoilage_applied = False
 
-Example: 1,529 booklets
-- Stitching: $50 + (1,529 × $0.0625) = $145.56
-- Folding: $40 + (1,529 × $0.075) = $154.68
-- Overhead: $100.00
-- Total finishing: $400.24
+# Detect debug mode
+debug_mode = "debug" in job_text.lower()
 
-OLD (WRONG) costs were:
-- Stitching: $65 (too low)
-- Folding: $23 (way too low)
-- No overhead
-- Total: $88 (understated by $312!)
+def compute_press_sheets(product_type, qty, up_count=None, pages=None):
+    """Canonical spoilage function - call EXACTLY ONCE per quote."""
+    global spoilage_applied
+    
+    if spoilage_applied:
+        raise Exception("❌ ERROR: Duplicate spoilage path attempted.")
+    
+    if product_type in ["postcard", "flyer", "brochure"]:
+        raw_sheets = math.ceil(qty / up_count)
+    elif product_type == "booklet":
+        sheets_per_booklet = 1 + (pages - 4) / 4
+        raw_sheets = qty * sheets_per_booklet
+    elif product_type in ["letter", "envelope"]:
+        if up_count is not None and up_count > 1:
+            raw_sheets = math.ceil(qty / up_count)
+        else:
+            raw_sheets = qty
+    else:
+        raw_sheets = qty
+    
+    if qty <= 250:
+        spoilage_factor = 1.05
+        spoilage_pct = "5%"
+    elif qty <= 500:
+        spoilage_factor = 1.04
+        spoilage_pct = "4%"
+    elif qty <= 1000:
+        spoilage_factor = 1.03
+        spoilage_pct = "3%"
+    elif qty <= 2500:
+        spoilage_factor = 1.025
+        spoilage_pct = "2.5%"
+    else:
+        spoilage_factor = 1.02
+        spoilage_pct = "2%"
+    
+    press_sheets = math.ceil(raw_sheets * spoilage_factor)
+    spoilage_applied = True
+    
+    return press_sheets, spoilage_pct, spoilage_factor
 
-=== FOLDING COSTS ===
+# === INPUT PARAMETERS ===
+qty = 1000
+finished_width = 6
+finished_height = 9
+color = "4/4"
+product_type = "postcard"
 
-⚠️ CRITICAL: DISTINGUISH BETWEEN FOLDED BROCHURES AND SADDLE-STITCHED BOOKLETS
+is_envelope = product_type == "envelope"
+is_booklet = product_type == "booklet"
+is_letter = product_type == "letter" or (finished_width == 8.5 and finished_height == 11)
+is_flyer = product_type in ["flyer", "brochure", "sheet"]
 
-FOLDED BROCHURES (single sheet, folded, NO binding):
-- Bi-fold / Half-fold: 1 sheet folded once (4 panels)
-- Tri-fold / Letter fold: 1 sheet folded twice (6 panels)
-- Quarter fold: 1 sheet folded twice (8 panels)
-- Z-fold / Accordion: 1 sheet folded in accordion pattern
-- Gate fold: 2 folds creating gate effect
+# === DEVICE ROUTING ===
+if is_envelope:
+    if "4/4" in color or "4/0" in color:
+        press = "P-04 Versant Color"
+        click_rate = 0.0336
+    elif "1/1" in color or "1/0" in color:
+        press = "P-05 Versant B&W"
+        click_rate = 0.0080
+    else:
+        press = "P-05 Versant B&W"
+        click_rate = 0.0080
+    if debug_mode:
+        print(f"Device: {press}")
+elif "1/0" in color or "1/1" in color:
+    press = "P-06 Nuvera B&W"
+    click_rate = 0.0027
+    if debug_mode:
+        print(f"Device: {press}")
+else:
+    press = "P-01 Iridesse Color"
+    click_rate = 0.0416
+    if debug_mode:
+        print(f"Device: {press}")
 
-SADDLE-STITCHED BOOKLETS (multiple sheets, stapled):
-- Multiple sheets nested and stitched at spine
-- Opens like a magazine
-- Pages turn
-- 8+ pages typical
+# === FLYER DEFAULT STOCK ===
+if is_flyer and "stock_cost_per_sheet" not in locals():
+    stock_cost_per_sheet = 0.0505
+    stock_name = "Endurance 100# Gloss Text (13×19)"
+    if debug_mode:
+        print(f"Stock: {stock_name} @ ${stock_cost_per_sheet:.4f}/sheet (default)")
 
-⚠️ BOOKLET FINISHED SIZE vs FOLDED BROCHURE:
+# === IMPOSITION ===
+if product_type in ["postcard", "flyer", "brochure"]:
+    live_width = finished_width + 0.25
+    live_height = finished_height + 0.25
+    orient1 = math.floor(13 / live_width) * math.floor(19 / live_height)
+    orient2 = math.floor(13 / live_height) * math.floor(19 / live_width)
+    up_count = max(orient1, orient2)
+    if debug_mode:
+        print(f"Imposition: {up_count}-up")
+elif product_type == "envelope":
+    up_count = 1
+    if debug_mode:
+        print("Envelopes: 1-up")
 
-When user says "X-page BOOKLET folded to [size]":
-- This means FINISHED BOOKLET SIZE (not a folding operation)
-- Example: "12-page booklet 8.5×11 folded to 8.5×5.5" = Booklet with 8.5×5.5 finished size
-- NO folding cost - this is just the trim size
-- Proceed with booklet quote
+# === LETTERS PAPER PATH ===
+if is_letter:
+    effective_up = 1
+    per_sheet_cost = 0.0125
+    cutting_cost = 0
+    paper_path = "pre-cut 8.5×11"
+    
+    if qty >= 8000:
+        precut_total = qty * 0.0125
+        twoup_total = math.ceil(qty / 2) * 0.00889 + 60
+        if twoup_total < precut_total:
+            effective_up = 2
+            per_sheet_cost = 0.00889
+            cutting_cost = 60
+            paper_path = "11×17 2-up + cut ($60)"
+    
+    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("letter", qty, effective_up)
+    if debug_mode:
+        print(f"Paper path: {paper_path}")
+        print(f"Spoilage: {spoilage_pct}")
+        print(f"Press Sheets: {press_sheets}")
 
-When user says "BROCHURE folded to [size]" (no page count):
-- This is a FOLDING OPERATION (single sheet)
-- Example: "brochure folded to 8.5×5.5" = Single sheet with folding cost
-- ADD folding cost
-- Calculate as flat sheet + folding
+# === BOOKLET WITH MAKEREADY ===
+if is_booklet:
+    if "total_pages" not in locals():
+        raise Exception("❌ Missing spec: total pages (including cover)")
+    
+    sheets_per_booklet = 1 + (total_pages - 4) / 4
+    if sheets_per_booklet != int(sheets_per_booklet):
+        raise Exception(f"❌ Invalid page count: {total_pages}")
+    
+    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("booklet", qty, pages=total_pages)
+    cover_sheets = math.ceil(qty * 1 * spoilage_factor)
+    interior_sheets = math.ceil(qty * ((total_pages - 4) / 4) * spoilage_factor)
+    cover_sheets_with_makeready = cover_sheets + 50
+    
+    if debug_mode:
+        print(f"Pages: {total_pages}")
+        print(f"Cover sheets (+50 makeready): {cover_sheets_with_makeready}")
+        print(f"Interior sheets: {interior_sheets}")
+        print(f"Spoilage: {spoilage_pct}")
 
-⚠️ ONLY ASK FOR CLARIFICATION IF:
-- User says "brochure" with page count AND folding (genuinely ambiguous)
-- User says conflicting specs like "single sheet 12 pages"
+# === CANONICAL SPOILAGE (non-letter, non-booklet) ===
+if not is_letter and not is_booklet:
+    press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets(
+        product_type=product_type,
+        qty=qty,
+        up_count=up_count if product_type in ["postcard", "flyer", "brochure"] else None
+    )
+    if debug_mode:
+        print(f"Spoilage: {spoilage_pct}")
+        print(f"Press Sheets: {press_sheets}")
 
-DO NOT ask if:
-- User clearly says "X-page booklet" with finished size
-- User says "booklet folded to [size]" (this is just finished size)
+# === COST CALCULATION ===
+if is_booklet:
+    stock_cost_cover = 0.0965
+    stock_cost_text = 0.0505
+    paper_cost = (cover_sheets_with_makeready * stock_cost_cover) + (interior_sheets * stock_cost_text)
+    cover_sides = 2 if "4/4" in color else 1
+    interior_sides = 2 if "4/4" in color else 1
+    click_cost = (cover_sheets_with_makeready * cover_sides * click_rate) + (interior_sheets * interior_sides * click_rate)
+    
+    stitch_setup = 50.00
+    stitch_run_rate = 0.0625
+    overhead = 100.00
+    base_finishing = stitch_setup + (qty * stitch_run_rate) + overhead
+    
+    if qty >= 10000:
+        discount = 0.20
+    elif qty >= 5000:
+        discount = 0.15
+    elif qty >= 1000:
+        discount = 0.10
+    else:
+        discount = 0.00
+    
+    finishing_cost = base_finishing * (1 - discount)
+    
+    if debug_mode and discount > 0:
+        print(f"Finishing volume discount: {discount*100:.0f}%")
+    
+    total_cost = paper_cost + click_cost + finishing_cost
+    
+elif is_envelope:
+    stock_cost_per_sheet = 0.0242
+    paper_cost = press_sheets * stock_cost_per_sheet
+    sides = 2 if ("4/4" in color or "1/1" in color) else 1
+    click_cost = press_sheets * sides * click_rate
+    total_cost = paper_cost + click_cost
+    
+elif is_letter:
+    paper_cost = (press_sheets * per_sheet_cost) + cutting_cost
+    sides = 1 if ("4/0" in color or "1/0" in color) else 2
+    click_cost = press_sheets * sides * click_rate
+    total_cost = paper_cost + click_cost
+    
+else:
+    paper_cost = press_sheets * stock_cost_per_sheet
+    sides = 2 if ("4/4" in color or "1/1" in color) else 1
+    click_cost = press_sheets * sides * click_rate
+    total_cost = paper_cost + click_cost
 
-WHEN TO APPLY FOLDING:
-- Any product described as "brochure", "trifold", "bifold", "quarter fold"
-- Flyers that need folding (e.g., "fold to 8.5×11")
-- User mentions "fold to [size]" or "folded to [size]"
-- NEVER apply to booklets (saddle-stitching already includes the fold)
+# === PRICING MULTIPLIER ===
+if product_type == "booklet":
+    if qty <= 250: multiplier = 4.00
+    elif qty <= 500: multiplier = 3.00
+    elif qty <= 1000: multiplier = 2.80
+    elif qty <= 2500: multiplier = 2.60
+    elif qty <= 10000: multiplier = 2.40
+    else: multiplier = 2.20
+elif product_type in ["postcard", "flyer", "brochure"]:
+    if qty <= 250: multiplier = 5.50
+    elif qty <= 500: multiplier = 4.50
+    elif qty <= 1000: multiplier = 3.80
+    elif qty <= 2500: multiplier = 3.30
+    elif qty <= 10000: multiplier = 3.00
+    elif qty <= 15000: multiplier = 2.50
+    else: multiplier = 2.20
+elif product_type == "envelope":
+    if qty <= 250: multiplier = 5.00
+    elif qty <= 500: multiplier = 4.00
+    elif qty <= 1000: multiplier = 3.50
+    elif qty <= 5000: multiplier = 3.00
+    else: multiplier = 2.50
+elif product_type == "letter":
+    if qty <= 250: multiplier = 4.50
+    elif qty <= 1000: multiplier = 3.50
+    elif qty <= 5000: multiplier = 3.00
+    else: multiplier = 2.50
+else:
+    if qty <= 250: multiplier = 5.50
+    elif qty <= 500: multiplier = 4.50
+    elif qty <= 1000: multiplier = 3.80
+    elif qty <= 2500: multiplier = 3.30
+    elif qty <= 10000: multiplier = 3.00
+    elif qty <= 15000: multiplier = 2.50
+    else: multiplier = 2.20
 
-MBO FOLDER RATES (based on volume):
-- 1-1,000: $0.025/pc + $20 setup
-- 1,001-5,000: $0.020/pc + $25 setup  
-- 5,001-10,000: $0.015/pc + $30 setup
-- 10,001+: $0.012/pc + $35 setup
+quote = total_cost * multiplier
 
-=== DESIGN SERVICES ===
+# === SHOP MINIMUM ===
+shop_minimum = 75.00
+shop_minimum_met = True
+if quote < shop_minimum:
+    quote = shop_minimum
+    shop_minimum_met = True
+    if debug_mode:
+        print(f"⚠️ Shop minimum applied: ${shop_minimum:.2f}")
 
-DESIGN RATE: $75/hour
+margin_pct = ((quote - total_cost) / quote) * 100
 
-=== MAILING SERVICES (PASS-THROUGH - NO MARKUP) ===
+# Always print these (not debug-gated)
+print(f"Quote: ${quote:.2f}")
+print(f"\\nProduction:")
+print(f"* Equipment: {press}")
+if 'stock_name' in locals():
+    print(f"* Stock: {stock_name}")
+if product_type in ["postcard", "flyer", "brochure"]:
+    print(f"* Imposition: {up_count}-up")
+print(f"* Press Sheets: {press_sheets} (includes {spoilage_pct} spoilage)")
+print(f"\\nCost (internal):")
+print(f"* Paper: ${paper_cost:.2f} (${paper_cost/qty:.4f}/pc)")
+print(f"* Clicks: ${click_cost:.2f} (${click_cost/qty:.4f}/pc)")
+if is_booklet:
+    print(f"* Stitching: ${finishing_cost:.2f} (${finishing_cost/qty:.4f}/pc)")
+    print(f"* Overhead/QC: ${overhead:.2f}")
+else:
+    print(f"* Stitching: $0.00 ($0.0000/pc)")
+    print(f"* Overhead/QC: $0.00")
+print(f"* TOTAL COST: ${total_cost:.2f} (${total_cost/qty:.4f}/pc)")
+print(f"\\nQUOTE: ${quote:.2f} (${quote/qty:.4f}/pc • {multiplier}× • {margin_pct:.0f}% margin)")
 
-COMPLETE SERVICE MENU:
-- S-01 NCOA/CASS: $0.007/pc ($10 minimum)
-- S-02 Inkjet Addressing (Letter/Postcard): $0.035/pc
-- S-03 Inkjet Addressing (Flat): $0.04/pc
-- S-04 Machine Inserting (1st piece): $0.02/pc
-- S-05 Machine Inserting (Each additional): $0.01/pc
-- S-06 Tabbing (Double Tab): $0.035/pc
-- S-07 Tabbing (Triple Tab): $0.05/pc
-- S-08 Bulk Mail Prep (Letters/Postcards): $0.017/pc
-- S-08 Bulk Mail Prep (Flats): $0.027/pc
-- S-09 Machine Folding: $0.015/pc ($15 minimum)
-- S-10 Collating: $0.02/pc ($15 minimum)
-- S-11 Machine Stamping: $0.02/pc
-- S-12 Barcode (OCR Processing): $0.035/pc
-- S-13 Hand Inserting (1st piece): $0.04/pc
-- S-14 Hand Inserting (Each additional): $0.02/pc
-- S-15 Hand Sealing: $0.03/pc
-- S-16 Hand Stamping: $0.03/pc
-- S-17 Marriage Matching (per match): $0.03/pc
-- S-18 Hand Folding: $0.06/pc ($20 minimum)
+# === MAIL SERVICES OUTPUT ===
+job_text_l = job_text.lower()
+wants_mailing = any(k in job_text_l for k in [" mail", "with mailing", "add mailing", "mail it", "mailing"])
+is_eddm = any(k in job_text_l for k in ["eddm", "every door", "saturation route", "saturation"])
 
-INTELLIGENT MAILING BY PRODUCT TYPE:
+mailing_services_total = 0.0
+mailing_section = ""
 
-**POSTCARDS:**
-- S-01: $0.007/pc
-- S-02: $0.035/pc (Letter/Postcard addressing)
-- S-08: $0.017/pc
-TOTAL: $0.059/pc
+if wants_mailing:
+    if is_eddm:
+        bundling = qty * 0.035
+        mailing_services_total += bundling
+        mailing_section += "\\nMail Services (EDDM):\\n"
+        mailing_section += "• EDDM Bundling & Paperwork: " + format(qty, ',') + " × $0.035 = $" + format(bundling, '.2f') + "\\n"
+        mailing_section += "• Postage: USPS EDDM postage billed at actuals (not calculated)\\n"
+    else:
+        if product_type in ["postcard"]:
+            svc = qty * 0.059
+            mailing_services_total += svc
+            mailing_section += "\\nMail Services (Addressed):\\n"
+            mailing_section += "• NCOA/CASS + Addressing + Bulk Prep: " + format(qty, ',') + " × $0.059 = $" + format(svc, '.2f') + "\\n"
+            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
+        elif product_type in ["flyer", "brochure"]:
+            svc = qty * 0.109
+            mailing_services_total += svc
+            mailing_section += "\\nMail Services (Self-mailer):\\n"
+            mailing_section += "• Addressing + Double Tab + Flats Prep: " + format(qty, ',') + " × $0.109 = $" + format(svc, '.2f') + "\\n"
+            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
+        elif product_type == "letter" or is_letter:
+            num_inserts = globals().get("num_inserts", 1)
+            base = 0.079 if num_inserts == 1 else 0.079 + 0.01 * (num_inserts - 1)
+            svc = qty * base
+            mailing_services_total += svc
+            mailing_section += "\\nMail Services (Letters):\\n"
+            mailing_section += "• NCOA + Address + Machine Insert (" + str(num_inserts) + " piece): " + format(qty, ',') + " × $" + format(base, '.3f') + " = $" + format(svc, '.2f') + "\\n"
+            mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
 
-**FLYERS/BROCHURES (Self-mailers):**
-- S-01: $0.007/pc
-- S-03: $0.04/pc (Flat addressing)
-- S-06: $0.035/pc (Double tab - standard)
-- S-08: $0.027/pc (Bulk mail prep - FLATS rate)
-TOTAL: $0.109/pc
+if mailing_services_total > 0:
+    print(mailing_section)
+    total_due = quote + mailing_services_total
+    label = "EDDM Bundling" if is_eddm else "Mail Services"
+    print("TOTAL (Printing + " + label + "): $" + format(total_due, ',.2f'))
 
-**LETTERS (In #10 envelopes):**
-Machine insert (standard):
-- S-01: $0.007/pc
-- S-02: $0.035/pc
-- S-04: $0.02/pc (1st piece)
-- S-05: $0.01/pc per additional insert
-- S-08: $0.017/pc
-TOTAL: $0.079/pc (1 sheet) or $0.089/pc (2 sheets)
+if "eddm" in job_text_l and ("address" in job_text_l or "addresses" in job_text_l):
+    print("\\n⚠️ EDDM campaigns are non-addressed saturation mail. For addressed mail, select Marketing Mail or First-Class instead.")
 
-=== CRITICAL RULES ===
+# === OFFSET ADVISORY FLAG ===
+is_static = True
+offset_flag = False
 
-⚠️ HANDLING UNAVAILABLE STOCKS:
-FIRST: Check the STOCK CONVERSION TABLE above
-- If user requests "12pt gloss" → That's 100# gloss → WE HAVE IT! Use $0.0965
-- If user requests "14pt cover" → That's our Kallima 14pt → WE HAVE IT! Use $0.123
-- If user requests "16pt cover" → That's 130# cover → WE HAVE IT! Use $0.1331
+if is_static:
+    if product_type in ["flyer", "brochure"] and finished_width == 8.5 and finished_height == 11:
+        if ("4/0" in color or "4/4" in color) and qty >= 30000:
+            offset_flag = True
+            print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
+    elif product_type == "postcard" and finished_width == 6.25 and finished_height == 9:
+        if "4/4" in color and qty >= 50000:
+            offset_flag = True
+            print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
+    elif product_type == "booklet" and qty >= 5000:
+        offset_flag = True
+        print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
 
-ONLY IF no conversion equivalent exists, then:
+# === PROFIT FLOORS ===
+gm_floor_met = True
 
-STEP 1 - ALERT & OFFER OPTIONS:
-Present user with 3 choices:
-A) Use an ESTIMATED cost (interpolated from similar stocks we carry)
-B) Switch to a stocked alternative (provide specific options with prices)
-C) Adjust specifications
+if product_type in ["postcard", "flyer", "brochure"]:
+    if margin_pct < 30:
+        print("\\n⚠️ WARNING: GM below 30% floor for postcards/flyers")
+        gm_floor_met = False
+elif product_type == "booklet":
+    if margin_pct < 35:
+        print("\\n⚠️ WARNING: GM below 35% floor for booklets")
+        gm_floor_met = False
 
-STEP 2 - IF USER CHOOSES ESTIMATED COST:
-Calculate interpolated cost based on similar stocks:
+# === QA SUMMARY ===
+qa_checks_total = 6
+qa_checks_passed = 0
 
-Example for 11pt cover (NOT in conversion table):
-- We stock: 10pt (80# @ $0.0951)
-- We stock: 12pt (100# @ $0.0965)
-- Estimated 11pt cost: Average = ($0.0951 + $0.0965) ÷ 2 × 1.10 buffer = ~$0.10/sheet
+device_correct = True
+if is_envelope:
+    if press not in ["P-04 Versant Color", "P-05 Versant B&W"]:
+        device_correct = False
+        print("\\n❌ QA FAIL: Envelope routed to non-Versant device")
+else:
+    if "Versant" in press:
+        device_correct = False
+        print("\\n❌ QA FAIL: Non-envelope routed to Versant")
 
-Provide quote with CLEAR DISCLAIMER:
-"⚠️ ESTIMATED QUOTE - 11pt cover is not a standard thickness.
-This quote uses an estimated paper cost of $X.XX/sheet based on similar stocks.
-Final pricing will be confirmed once we source the specific stock you need."
+if device_correct:
+    qa_checks_passed += 1
 
-INTERPOLATION FORMULA:
-For weights between stocked options:
-- Identify closest lighter stock (cost_light)
-- Identify closest heavier stock (cost_heavy)
-- Estimate = (cost_light + cost_heavy) ÷ 2
-- Add 10% buffer for sourcing: estimate × 1.10
+if spoilage_applied:
+    qa_checks_passed += 1
+else:
+    print("\\n❌ QA FAIL: Spoilage not applied")
 
-EXAMPLE RESPONSE FOR 12PT REQUEST:
-"⚠️ We don't stock 12pt gloss cover in our regular inventory.
+if paper_cost > 0:
+    qa_checks_passed += 1
+else:
+    print("\\n❌ QA FAIL: Paper cost is zero")
 
-I can provide you with:
+if click_cost > 0:
+    qa_checks_passed += 1
+else:
+    print("\\n❌ QA FAIL: Click cost is zero")
 
-Option A: ESTIMATED quote using 12pt
-• I'll interpolate the paper cost between our 100# gloss (~10pt) and 14pt stocks
-• Quote will be flagged as estimated pending stock sourcing confirmation
-• Would you like me to calculate this?
+if gm_floor_met:
+    qa_checks_passed += 1
 
-Option B: Quote using our stocked alternatives
-• Kallima 14pt C2S @ $0.123/sheet (heavier, most popular)
-• Endurance 100# Gloss @ $0.0965/sheet (lighter, economical)
+if quote >= shop_minimum:
+    qa_checks_passed += 1
+else:
+    print("\\n❌ QA FAIL: Quote below shop minimum")
 
-Which would you prefer?"
+print("\\n═══════════════════════════════════════════")
+print("QA SUMMARY")
+print("═══════════════════════════════════════════")
+print(f"• Device: {press}")
+print(f"• Spoilage: {spoilage_pct}")
+print(f"• Press Sheets: {press_sheets}")
+print(f"• Paper: ${paper_cost:.2f}")
+print(f"• Clicks: ${click_cost:.2f}")
+if is_booklet:
+    print(f"• Finishing: ${finishing_cost:.2f}")
+else:
+    print(f"• Finishing: $0.00")
+print(f"• GM%: {margin_pct:.0f}%")
+print(f"• Checks Passed: {qa_checks_passed}/{qa_checks_total}")
+print("═══════════════════════════════════════════")
 
-STOCKS WE DO NOT CARRY (but CAN estimate):
-- 12pt cover (any finish) - estimate between 100# gloss and 14pt
-- 10pt cover (any finish) - estimate from 100# gloss
-- 90# text - estimate between 80# and 100#
-- Any specific weight/thickness not in database
-
-WAIT for user confirmation before proceeding with EITHER estimated OR alternative stock quote.
-
-⚠️ STOCK MATCHING - EXACT SPECIFICATIONS REQUIRED:
-
-When user specifies a stock attribute (gloss, silk, smooth, etc.), MATCH IT EXACTLY:
-
-CORRECT:
-- User says "80# gloss" → Use Endurance 80# GLOSS (SKU 10735824)
-- User says "100# silk" → Use Endurance 100# SILK (SKU 10735917)
-- User says "80# gloss throughout" → Use 80# GLOSS for cover AND text
-
-WRONG:
-- User says "80# gloss" → System uses 80# SILK ❌
-- User says "100# gloss throughout" → System uses 100# gloss cover + 80# gloss text ❌
-
-GLOSS vs SILK vs SMOOTH:
-- GLOSS = Shiny, reflective finish
-- SILK = Satin, soft finish (between gloss and matte)
-- SMOOTH = Uncoated, matte finish
-
-These are DIFFERENT products - never substitute without asking!
-
-"Throughout" means SAME STOCK for cover and interior:
-- "80# gloss throughout" = 80# gloss cover + 80# gloss text
-- "100# gloss throughout" = 100# gloss cover + 100# gloss text
-- NOT "80# gloss cover + 100# gloss text"
-
-SHOP MINIMUM:
-- ALL quotes must be at least $75.00
-- If calculated quote < $75, set quote = $75 and note: "Shop minimum applied"
-
-ENVELOPES:
-- ALL envelopes print 1-up (one per impression)
-- NEVER impose envelopes on 13×19 sheets
-- Use P-04, P-05, or P-07 ONLY (never P-01 or P-06)
-
-BOOKLETS:
-- Cover: 1 sheet per booklet (4/4)
-- Text: (Total_pages - 4) ÷ 2 sheets per booklet
-- Finishing: Use page-count-specific rates from table above
-
-⚠️ BOOKLET PAGE COUNT CALCULATION:
-
-"X-page booklet" means TOTAL page count including cover:
-- 8-page booklet = Cover (4 pages) + Interior (4 pages) = 2 sheets total
-- 12-page booklet = Cover (4 pages) + Interior (8 pages) = 4 sheets total
-- 16-page booklet = Cover (4 pages) + Interior (12 pages) = 6 sheets total
-- 24-page booklet = Cover (4 pages) + Interior (20 pages) = 10 sheets total
-
-FORMULA:
-- Cover sheets: 1 sheet (4 pages: front cover, inside front, inside back, back cover)
-- Interior sheets: (Total_pages - 4) ÷ 4 sheets
-- Total sheets per booklet = 1 + ((Total_pages - 4) ÷ 4)
-
-Examples:
-- 12 pages: 1 cover + ((12-4)÷4) = 1 + 2 = 3 sheets per booklet
-- 16 pages: 1 cover + ((16-4)÷4) = 1 + 3 = 4 sheets per booklet
-- 20 pages: 1 cover + ((20-4)÷4) = 1 + 4 = 5 sheets per booklet
-
-NEVER confuse page count with sheet count!
-
-=== OUTPUT FORMAT ===
-
-Quote: $XXX.XX
-1,000 6×9 Postcards • 4/4 • Kallima 14pt C2S
-
-Production:
-* Equipment: P-01 Iridesse
-* Stock: Kallima 14pt C2S - $0.1230/sheet
-* Imposition: 4-up
-* Press Sheets: 258 (includes 3% spoilage)
-
-Cost (internal):
-* Paper: $31.71 ($0.0317/pc)
-* Clicks: $21.47 ($0.0215/pc)
-* Stitching: $0.00 ($0.0000/pc)
-* Overhead/QC: $0.00
-* TOTAL COST: $53.18 ($0.0532/pc)
-
-QUOTE: $242.50 ($0.2425/pc • 4.56× • 78% margin)
-
-═══════════════════════════════════════════
-QA SUMMARY
-═══════════════════════════════════════════
-• Device: P-01 Iridesse
-• Spoilage: 3%
-• Press Sheets: 258
-• Paper: $31.71
-• Clicks: $21.47
-• Finishing: $0.00
-• GM%: 78%
-• Checks Passed: 6/6
-═══════════════════════════════════════════`,
+if qa_checks_passed < qa_checks_total:
+    print("\\n❌ QA FAILED - Quote cannot be issued with failed checks")
+    raise Exception("QA checks failed - see above for details")`,
             cache_control: { type: 'ephemeral' }
           }
         ],
-        messages: recentMessages,
+
         tools: [{
           type: 'code_execution_20250825',
           name: 'code_execution'
