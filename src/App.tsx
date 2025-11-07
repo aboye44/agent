@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Send, Sparkles, Copy, RefreshCw, User, Download, Edit3 } from 'lucide-react';
+import { Send, Sparkles, Copy, RefreshCw, User, Download, Edit3, Eye, EyeOff, Info } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 import { SPEC_PARSER_PROMPT, parseSpecsFromResponse } from './utils/specParser';
 import { QuoteResult } from './types/quote';
@@ -31,12 +31,22 @@ export default function App() {
   // PDF preview
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfFilename, setPdfFilename] = useState<string>('');
+  const [showPdfPreview, setShowPdfPreview] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('chatmpa-history');
     if (saved) {
       setMessages(JSON.parse(saved));
     }
+
+    // Check if mobile/tablet
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
   useEffect(() => {
@@ -438,11 +448,20 @@ export default function App() {
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'text-neutral-400 hover:text-white hover:bg-neutral-800/60'
               } disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed`}
-              title={!latestQuoteResult ? 'Generate a quote first' : pdfEditMode ? 'PDF edit mode: ON' : 'PDF edit mode: OFF'}
+              title={!latestQuoteResult ? 'Generate a quote first' : pdfEditMode ? 'Edit customer name, job name, or add notes via chat' : 'Enable to edit PDF via chat'}
             >
               <Edit3 className="w-4 h-4" />
-              {pdfEditMode ? 'Edit ON' : 'Edit'}
+              {pdfEditMode ? 'Editing' : 'Edit PDF'}
             </button>
+            {!isMobile && (
+              <button
+                onClick={() => setShowPdfPreview(!showPdfPreview)}
+                className="px-4 py-2 text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800/60 rounded-xl transition-all flex items-center gap-2"
+                title={showPdfPreview ? 'Hide PDF preview' : 'Show PDF preview'}
+              >
+                {showPdfPreview ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            )}
             <button
               onClick={handleDownloadPDF}
               disabled={!latestQuoteResult}
@@ -461,6 +480,27 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Edit Mode Help Banner */}
+      {pdfEditMode && (
+        <div className="bg-blue-900/20 border-b border-blue-500/30">
+          <div className="max-w-4xl mx-auto px-6 py-3 flex items-start gap-3">
+            <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-blue-200 font-medium">PDF Edit Mode Active</p>
+              <p className="text-xs text-blue-300/80 mt-1">
+                Try: "Change customer to Acme Corp" • "Add note: Rush delivery" • "Set job name to Spring Campaign" • "Clear notes"
+              </p>
+            </div>
+            <button
+              onClick={() => setPdfEditMode(false)}
+              className="text-blue-400 hover:text-blue-300 text-xs"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content: Split view */}
       <div className="flex flex-1 overflow-hidden">
@@ -609,7 +649,11 @@ export default function App() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Quote 500 postcards, 10k envelopes, booklets..."
+              placeholder={
+                pdfEditMode
+                  ? 'Change customer to..., Add note:..., Set job name to...'
+                  : 'Quote 500 postcards, 10k envelopes, booklets...'
+              }
               className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none resize-none text-base"
               rows={1}
               disabled={isLoading}
@@ -634,29 +678,31 @@ export default function App() {
           </div>
         </div>
 
-        {/* Right: PDF Preview */}
-        <div className="w-[500px] border-l border-neutral-800 bg-neutral-900/50 flex flex-col">
-          <div className="px-4 py-3 border-b border-neutral-800 bg-neutral-950/80">
-            <h3 className="text-sm font-medium text-white">PDF Preview</h3>
-            {pdfFilename && (
-              <p className="text-xs text-neutral-500 mt-1">{pdfFilename}</p>
-            )}
+        {/* Right: PDF Preview (Desktop only, toggleable) */}
+        {!isMobile && showPdfPreview && (
+          <div className="w-[500px] border-l border-neutral-800 bg-neutral-900/50 flex flex-col">
+            <div className="px-4 py-3 border-b border-neutral-800 bg-neutral-950/80">
+              <h3 className="text-sm font-medium text-white">PDF Preview</h3>
+              {pdfFilename && (
+                <p className="text-xs text-neutral-500 mt-1">{pdfFilename}</p>
+              )}
+            </div>
+            <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+              {pdfPreviewUrl ? (
+                <iframe
+                  src={pdfPreviewUrl}
+                  className="w-full h-full border border-neutral-800 rounded-lg bg-white"
+                  title="PDF Preview"
+                />
+              ) : (
+                <div className="text-center text-neutral-500">
+                  <div className="text-4xl mb-3">📄</div>
+                  <p className="text-sm">Generate a quote to see PDF preview</p>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
-            {pdfPreviewUrl ? (
-              <iframe
-                src={pdfPreviewUrl}
-                className="w-full h-full border border-neutral-800 rounded-lg bg-white"
-                title="PDF Preview"
-              />
-            ) : (
-              <div className="text-center text-neutral-500">
-                <div className="text-4xl mb-3">📄</div>
-                <p className="text-sm">Generate a quote to see PDF preview</p>
-              </div>
-            )}
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
