@@ -139,7 +139,7 @@ export default function App() {
         temperature: 0,
         betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
         tool_choice: { type: 'auto' },
-        tools: [{ type: 'code_execution_20250825', name: 'code_execution' }],
+        tools: [{ type: 'code_execution_20250825' }],
 
         // Pass the user's latest raw text into Python as job_text (so EDDM/mailing detection works)
         system: [
@@ -947,13 +947,20 @@ if qa_checks_passed < qa_checks_total:
       // Handle content block delta for code execution output
       stream.on('contentBlockDelta', (delta: any) => {
         console.log('Content block delta:', delta);
-        if (delta.type === 'content_block_delta' && delta.delta?.type === 'text_delta') {
-          fullResponse += delta.delta.text;
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
-            )
-          );
+        console.log('Delta details - index:', delta.index, 'delta:', JSON.stringify(delta.delta, null, 2));
+
+        if (delta.type === 'content_block_delta') {
+          if (delta.delta?.type === 'text_delta') {
+            fullResponse += delta.delta.text;
+            setMessages(prev =>
+              prev.map(msg =>
+                msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
+              )
+            );
+          } else if (delta.delta?.type === 'input_json_delta') {
+            // Code execution input is being streamed
+            console.log('Code execution input delta:', delta.delta.partial_json);
+          }
         }
       });
 
@@ -975,11 +982,15 @@ if qa_checks_passed < qa_checks_total:
           console.log('Processing block:', block.type, block);
           if (block.type === 'text') {
             completeText += block.text;
-          } else if (block.type === 'tool_use' && block.name === 'code_execution') {
+          } else if ((block.type === 'tool_use' || block.type === 'server_tool_use') &&
+                     (block.name === 'code_execution' || block.name === 'bash_code_execution')) {
             // Code execution output can be in different properties
             const output = block.output || block.result || block.text || '';
+            console.log('Tool use block output:', output);
             if (output) {
               completeText += '\n\n' + output;
+            } else {
+              console.warn('No output found in tool block:', block);
             }
           } else if (block.type === 'tool_result') {
             // Handle tool result blocks if they exist
