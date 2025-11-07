@@ -37,9 +37,20 @@ export function formatQuote(result: QuoteResult): string {
   // Mailing services (if applicable)
   if (mailingServices && totalWithMailing) {
     output += `\n`;
-    output += specs.isEDDM ? `Mail Services (EDDM):\n` : `Mail Services (Addressed):\n`;
-    output += `• ${mailingServices.description}: ${specs.quantity.toLocaleString()} × $${mailingServices.cost / specs.quantity} = $${mailingServices.cost.toFixed(2)}\n`;
-    output += `• Postage: ${specs.isEDDM ? 'USPS EDDM' : 'USPS'} postage billed at actuals (not calculated)\n\n`;
+
+    // Display each section with itemized breakdown
+    for (const section of mailingServices.sections) {
+      output += `\n${section.name}:\n`;
+      for (const item of section.items) {
+        output += `• ${item.description}: ${item.quantity.toLocaleString()} × $${item.unitPrice.toFixed(3)} = $${item.total.toFixed(2)}\n`;
+      }
+      output += `${section.name} Subtotal: $${section.subtotal.toFixed(2)}\n`;
+    }
+
+    // Postage note
+    output += `\nPostage: ${specs.isEDDM ? 'USPS EDDM' : 'USPS'} postage billed at actuals (not calculated)\n\n`;
+
+    // Grand total
     const label = specs.isEDDM ? 'EDDM Bundling' : 'Mail Services';
     output += `TOTAL (Printing + ${label}): $${totalWithMailing.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
   }

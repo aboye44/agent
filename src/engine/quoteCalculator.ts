@@ -1,4 +1,4 @@
-import { QuoteSpecs, QuoteResult, PaperStock, CostBreakdown } from '../types/quote';
+import { QuoteSpecs, QuoteResult, PaperStock, CostBreakdown, MailingServices, MailingServiceSection } from '../types/quote';
 import { paperStocks, defaultStocks, stockAliases } from '../data/paperStocks';
 import { getEquipment } from '../data/equipment';
 import { getMultiplier, getMarginFloor, mailingRates, SHOP_MINIMUM } from '../data/pricingTiers';
@@ -54,7 +54,7 @@ export function calculateQuote(specs: QuoteSpecs): QuoteResult {
   let totalWithMailing;
   if (specs.wantsMailing) {
     mailingServices = calculateMailingServices(specs);
-    totalWithMailing = quote + mailingServices.cost;
+    totalWithMailing = quote + mailingServices.total;
   }
 
   // 10. QA checks
@@ -143,35 +143,122 @@ function calculateCosts(
 }
 
 /**
- * Calculate mailing services cost
+ * Calculate mailing services with itemized breakdown
  */
-function calculateMailingServices(specs: QuoteSpecs): { cost: number; description: string } {
+function calculateMailingServices(specs: QuoteSpecs): MailingServices {
   const { quantity, productType, isEDDM } = specs;
+  const sections: MailingServiceSection[] = [];
 
   if (isEDDM) {
+    // EDDM: Just bundling/paperwork
+    const bundlingCost = quantity * mailingRates.eddm.bundling;
+    sections.push({
+      name: 'LETTERSHOP',
+      items: [
+        {
+          description: 'EDDM Bundling & Paperwork',
+          quantity,
+          unitPrice: mailingRates.eddm.bundling,
+          total: bundlingCost,
+        },
+      ],
+      subtotal: bundlingCost,
+    });
+
     return {
-      cost: quantity * mailingRates.eddm.bundling,
-      description: 'EDDM Bundling & Paperwork',
+      sections,
+      total: bundlingCost,
     };
   }
 
-  // Addressed mail
-  let rate = 0;
-  let desc = '';
+  // Addressed Mail: Break down into DATA PROCESSING + LETTERSHOP sections
+
+  // DATA PROCESSING (NCOA/CASS)
+  const ncoaCost = quantity * 0.007;
+  sections.push({
+    name: 'DATA PROCESSING',
+    items: [
+      {
+        description: 'NCOA/CASS',
+        quantity,
+        unitPrice: 0.007,
+        total: ncoaCost,
+      },
+    ],
+    subtotal: ncoaCost,
+  });
+
+  // LETTERSHOP (varies by product type)
+  const lettershopItems = [];
+
   if (productType === 'postcard') {
-    rate = mailingRates.addressed.postcard;
-    desc = 'NCOA/CASS + Addressing + Bulk Prep';
+    // Postcards: Inkjet + Bulk prep
+    lettershopItems.push({
+      description: 'Inkjet addressing',
+      quantity,
+      unitPrice: 0.035,
+      total: quantity * 0.035,
+    });
+    lettershopItems.push({
+      description: 'Bulk preparation (traying/bundling)',
+      quantity,
+      unitPrice: 0.017,
+      total: quantity * 0.017,
+    });
   } else if (productType === 'flyer' || productType === 'brochure') {
-    rate = mailingRates.addressed.selfMailer;
-    desc = 'Addressing + Double Tab + Flats Prep';
+    // Self-mailers: Inkjet + Tabs + Bulk prep
+    lettershopItems.push({
+      description: 'Inkjet addressing',
+      quantity,
+      unitPrice: 0.035,
+      total: quantity * 0.035,
+    });
+    lettershopItems.push({
+      description: 'Double tab application',
+      quantity,
+      unitPrice: 0.057,
+      total: quantity * 0.057,
+    });
+    lettershopItems.push({
+      description: 'Bulk preparation (flats)',
+      quantity,
+      unitPrice: 0.017,
+      total: quantity * 0.017,
+    });
   } else if (productType === 'letter') {
-    rate = mailingRates.addressed.letter;
-    desc = 'NCOA + Address + Machine Insert (1 piece)';
+    // Letters: Inkjet + Machine insert + Metering
+    lettershopItems.push({
+      description: 'Inkjet addressing',
+      quantity,
+      unitPrice: 0.035,
+      total: quantity * 0.035,
+    });
+    lettershopItems.push({
+      description: 'Machine insert (1-piece)',
+      quantity,
+      unitPrice: 0.034,
+      total: quantity * 0.034,
+    });
+    lettershopItems.push({
+      description: 'Metering',
+      quantity,
+      unitPrice: 0.010,
+      total: quantity * 0.010,
+    });
   }
 
+  const lettershopSubtotal = lettershopItems.reduce((sum, item) => sum + item.total, 0);
+  sections.push({
+    name: 'LETTERSHOP',
+    items: lettershopItems,
+    subtotal: lettershopSubtotal,
+  });
+
+  const total = ncoaCost + lettershopSubtotal;
+
   return {
-    cost: quantity * rate,
-    description: desc,
+    sections,
+    total,
   };
 }
 

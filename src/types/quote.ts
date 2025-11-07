@@ -44,6 +44,30 @@ export interface CostBreakdown {
   totalCost: number;
 }
 
+export interface MailingServiceItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface MailingServiceSection {
+  name: string; // e.g., "DATA PROCESSING", "LETTERSHOP", "FULFILLMENT", "POSTAGE"
+  items: MailingServiceItem[];
+  subtotal: number;
+}
+
+export interface MailingServices {
+  sections: MailingServiceSection[];
+  total: number;
+  postage?: {
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+  };
+}
+
 export interface QuoteResult {
   specs: QuoteSpecs;
   equipment: Equipment;
@@ -53,10 +77,7 @@ export interface QuoteResult {
   multiplier: number;
   quote: number;
   marginPercent: number;
-  mailingServices?: {
-    cost: number;
-    description: string;
-  };
+  mailingServices?: MailingServices;
   totalWithMailing?: number;
   qa: {
     deviceRouting: boolean;

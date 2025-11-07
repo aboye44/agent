@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Copy, RefreshCw, User } from 'lucide-react';
+import { Send, Sparkles, Copy, RefreshCw, User, Download } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 import { SPEC_PARSER_PROMPT, parseSpecsFromResponse } from './utils/specParser';
+import { QuoteResult } from './types/quote';
+import { generateEstimatePDF } from './utils/pdfGenerator';
 
 type ChatMsg = {
   id?: string | number;
@@ -15,6 +17,8 @@ export default function App() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [customerName, setCustomerName] = useState('');
+  const [latestQuoteResult, setLatestQuoteResult] = useState<QuoteResult | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
@@ -167,6 +171,9 @@ export default function App() {
             const result = calculateQuote(specs);
             const formattedQuote = formatQuote(result);
 
+            // Store the quote result for PDF generation
+            setLatestQuoteResult(result);
+
             setMessages(prev =>
               prev.map(msg =>
                 msg.id === assistantMessageId
@@ -265,6 +272,22 @@ export default function App() {
     navigator.clipboard.writeText(text);
   };
 
+  const handleDownloadPDF = async () => {
+    if (!latestQuoteResult) {
+      alert('No quote available to download. Please generate a quote first.');
+      return;
+    }
+
+    try {
+      await generateEstimatePDF(latestQuoteResult, {
+        customerName: customerName.trim() || undefined,
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      alert('Error generating PDF. Please try again.');
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-neutral-950 to-neutral-900">
       {/* Header */}
@@ -282,12 +305,31 @@ export default function App() {
               <p className="text-xs text-neutral-400">Instant Pricing Agent</p>
             </div>
           </div>
-          <button
-            onClick={clearHistory}
-            className="px-4 py-2 text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800/60 rounded-xl transition-all"
-          >
-            Clear Chat
-          </button>
+
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Customer name (optional)"
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              className="px-3 py-2 text-sm bg-neutral-900 border border-neutral-800 text-white placeholder-neutral-500 rounded-lg focus:outline-none focus:border-blue-500 transition-all w-48"
+            />
+            <button
+              onClick={handleDownloadPDF}
+              disabled={!latestQuoteResult}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-neutral-800 disabled:text-neutral-500 disabled:cursor-not-allowed rounded-xl transition-all flex items-center gap-2"
+              title={!latestQuoteResult ? 'Generate a quote first' : 'Download PDF estimate'}
+            >
+              <Download className="w-4 h-4" />
+              PDF
+            </button>
+            <button
+              onClick={clearHistory}
+              className="px-4 py-2 text-sm font-medium text-neutral-400 hover:text-white hover:bg-neutral-800/60 rounded-xl transition-all"
+            >
+              Clear Chat
+            </button>
+          </div>
         </div>
       </div>
 
