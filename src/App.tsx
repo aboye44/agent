@@ -3,12 +3,12 @@ import { Send, Sparkles, Copy, RefreshCw, User } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 
 export default function App() {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState<any[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
-  const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const saved = localStorage.getItem('chatmpa-history');
@@ -30,8 +30,8 @@ export default function App() {
   }, [messages, autoScroll]);
 
   // Detect when user scrolls up manually
-  const handleScroll = (e) => {
-    const container = e.target;
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
     const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     setAutoScroll(isAtBottom);
   };
@@ -103,7 +103,7 @@ export default function App() {
       const needsDeepContext = /\b(add|change|update|also)\b/i.test(currentInput);
       
       // Adaptive context depth: 2-3 for simple quotes, 5 for modifications
-      let recentMessages = [];
+      let recentMessages: Array<{role: 'user' | 'assistant', content: string}> = [];
       if (isQuoteRequest || needsDeepContext) {
         const contextDepth = needsDeepContext ? 5 : 3;
         // Filter out any thinking indicator messages and only include valid message pairs
@@ -112,7 +112,7 @@ export default function App() {
           msg.content !== '🔄 Calculating your quote...' &&
           msg.content.trim().length > 0
         );
-        recentMessages = validMessages.slice(-contextDepth).map(msg => ({ 
+        recentMessages = validMessages.slice(-contextDepth).map((msg: any) => ({ 
           role: msg.role, 
           content: msg.content 
         }));
@@ -145,14 +145,13 @@ export default function App() {
         messageCount: recentMessages.length
       });
 
-      // Stream response with inline pricing knowledge
-      try {
-        const stream = await client.beta.messages.stream({
-          model: 'claude-sonnet-4-5-20250929',
-          max_tokens: maxTokens,
-          temperature: 0,
-          betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
-          messages: recentMessages,
+      // Stream response with inline pricing knowledge (no inner try)
+      const stream = await client.beta.messages.stream({
+        model: 'claude-sonnet-4-5-20250929',
+        max_tokens: maxTokens,
+        temperature: 0,
+        betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
+        messages: recentMessages,
         system: [
           {
             type: 'text',
@@ -231,6 +230,9 @@ ALL envelopes (any color/B&W):
 If non-envelope flats/booklets route to Versant → throw error
 If envelopes route to Iridesse/Nuvera → throw error
 Error text: "❌ ERROR: Invalid press routing – envelope-only device rule violated."
+
+Equipment note:
+P-07 Colormax Env: Not used at MPA (disabled)
 
 B) FLYER DEFAULT STOCK (auto-apply when stock unspecified)
 
@@ -971,39 +973,39 @@ if qa_checks_passed < qa_checks_total:
 
       let fullResponse = '';
       
-      stream.on('text', (text) => {
+      stream.on('text', (text: string) => {
         fullResponse += text;
         setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId
+          (msg.id === assistantMessageId)
             ? { ...msg, content: fullResponse }
             : msg
         ));
       });
 
-      stream.on('error', (error) => {
+      stream.on('error', (error: unknown) => {
         console.error('Stream error:', error);
         throw error;
       });
 
-      const finalMessage = await stream.finalMessage();
+      const finalMessage: any = await stream.finalMessage();
       
       // Ensure we have the complete response
       if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
         const completeText = finalMessage.content
-          .filter(block => block.type === 'text')
-          .map(block => block.text)
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
           .join('');
         
         if (completeText && completeText !== fullResponse) {
           setMessages(prev => prev.map(msg => 
-            msg.id === assistantMessageId
+            (msg.id === assistantMessageId)
               ? { ...msg, content: completeText }
               : msg
           ));
         }
       }
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error:', err);
       console.error('Error details:', JSON.stringify(err, null, 2));
       const errorMessage = {
@@ -1024,14 +1026,14 @@ if qa_checks_passed < qa_checks_total:
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
 
@@ -1131,7 +1133,7 @@ if qa_checks_passed < qa_checks_total:
             </div>
           )}
           
-          {messages.map((msg, idx) => (
+          {messages.map((msg: any, idx: number) => (
             <div
               key={msg.id || idx}
               className={`mb-6 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
