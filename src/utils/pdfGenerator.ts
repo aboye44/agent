@@ -25,7 +25,7 @@ const COLORS = {
 export async function generateEstimatePDF(
   result: QuoteResult,
   options: PDFOptions = {}
-): Promise<void> {
+): Promise<{ pdfUrl: string; filename: string; blob: Blob }> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -47,67 +47,17 @@ export async function generateEstimatePDF(
   // HEADER
   // ==========================================
 
-  // Logo area (left) - Load and add MPA logo
-  try {
-    const logoImg = new Image();
-    logoImg.src = '/mpa-logo.png';
-    await new Promise((resolve, reject) => {
-      logoImg.onload = resolve;
-      logoImg.onerror = reject;
-    });
+  // Company info (left)
+  doc.setFontSize(10);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Mail Processing Associates', 15, yPos);
 
-    // Compress image using canvas to reduce PDF size
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d')!;
-
-    // Set canvas size to a reasonable resolution
-    const scale = 2; // 2x for retina displays
-    canvas.width = logoImg.width * scale;
-    canvas.height = logoImg.height * scale;
-    ctx.scale(scale, scale);
-    ctx.drawImage(logoImg, 0, 0, logoImg.width, logoImg.height);
-
-    // Convert to compressed JPEG (much smaller than PNG)
-    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-    // Calculate dimensions to fit in box without stretching
-    const maxWidth = 50;
-    const maxHeight = 18;
-    const imgAspect = logoImg.width / logoImg.height;
-    const boxAspect = maxWidth / maxHeight;
-
-    let logoWidth, logoHeight;
-    if (imgAspect > boxAspect) {
-      // Image is wider than box - constrain by width
-      logoWidth = maxWidth;
-      logoHeight = maxWidth / imgAspect;
-    } else {
-      // Image is taller than box - constrain by height
-      logoHeight = maxHeight;
-      logoWidth = maxHeight * imgAspect;
-    }
-
-    // Center in box
-    const logoX = 15 + (maxWidth - logoWidth) / 2;
-    const logoY = yPos - 5 + (maxHeight - logoHeight) / 2;
-
-    doc.addImage(compressedDataUrl, 'JPEG', logoX, logoY, logoWidth, logoHeight);
-  } catch (error) {
-    // Fallback if logo fails to load
-    doc.setFillColor(...COLORS.lightGray);
-    doc.roundedRect(15, yPos - 5, 50, 18, 2, 2, 'F');
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.primary);
-    doc.setFont('helvetica', 'bold');
-    doc.text('MPA', 40, yPos + 5, { align: 'center' });
-  }
-
-  // Company info
   doc.setFontSize(8);
-  doc.setTextColor(...COLORS.gray);
+  doc.setTextColor(...COLORS.dark);
   doc.setFont('helvetica', 'normal');
-  doc.text('Mail Processing Associates', 15, yPos + 20);
-  doc.text('Lakeland, FL', 15, yPos + 24);
+  doc.text('430 N Wabash Ave, Lakeland, FL 33815', 15, yPos + 5);
+  doc.text('orders@mailpro.org', 15, yPos + 9);
 
   // Estimate badge (right)
   doc.setFillColor(...COLORS.primary);
@@ -399,7 +349,7 @@ export async function generateEstimatePDF(
 
   doc.setFontSize(7);
   doc.setTextColor(...COLORS.gray);
-  doc.text('Mail Processing Associates • Lakeland, FL', 15, yPos + 4);
+  doc.text('Mail Processing Associates • 430 N Wabash Ave, Lakeland, FL 33815 • orders@mailpro.org', 15, yPos + 4);
   doc.text(`Estimate ${estimateNumber}`, 195, yPos + 4, { align: 'right' });
 
   // ==========================================
@@ -410,18 +360,9 @@ export async function generateEstimatePDF(
     ? `MPA-Estimate-${estimateNumber}-${options.customerName.replace(/\s+/g, '-')}.pdf`
     : `MPA-Estimate-${estimateNumber}.pdf`;
 
-  // Open in new window for print preview
+  // Return blob URL for preview or download
   const pdfBlob = doc.output('blob');
   const pdfUrl = URL.createObjectURL(pdfBlob);
-  const printWindow = window.open(pdfUrl, '_blank');
 
-  // Also offer download
-  if (printWindow) {
-    printWindow.onload = () => {
-      printWindow.document.title = filename;
-    };
-  } else {
-    // Fallback to direct download if popup blocked
-    doc.save(filename);
-  }
+  return { pdfUrl, filename, blob: pdfBlob };
 }

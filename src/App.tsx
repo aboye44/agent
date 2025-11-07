@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Sparkles, Copy, RefreshCw, User, Download, Edit3 } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 import { SPEC_PARSER_PROMPT, parseSpecsFromResponse } from './utils/specParser';
@@ -27,6 +27,10 @@ export default function App() {
   const [pdfEditMode, setPdfEditMode] = useState(false);
   const [pdfCustomNotes, setPdfCustomNotes] = useState('');
   const [pdfJobName, setPdfJobName] = useState('');
+
+  // PDF preview
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [pdfFilename, setPdfFilename] = useState<string>('');
 
   useEffect(() => {
     const saved = localStorage.getItem('chatmpa-history');
@@ -350,20 +354,12 @@ export default function App() {
     return `I can help you edit the PDF estimate. Try:\n• "Change customer name to Acme Corp"\n• "Add a note: Rush delivery required"\n• "Set job name to Spring 2024 Campaign"\n• "Clear notes"`;
   };
 
-  const handleDownloadPDF = async () => {
-    // Use ref to get the absolute latest quote (refs don't have stale closure issues)
+  const updatePdfPreview = useCallback(async () => {
     const quoteToExport = latestQuoteRef.current;
-
     if (!quoteToExport) {
-      alert('No quote available to download. Please generate a quote first.');
+      setPdfPreviewUrl(null);
       return;
     }
-
-    console.log('📄 Generating PDF for quote:', {
-      quantity: quoteToExport.specs.quantity,
-      product: quoteToExport.specs.productType,
-      quote: quoteToExport.quote
-    });
 
     try {
       const pdfOptions: PDFOptions = {
@@ -372,18 +368,47 @@ export default function App() {
         jobName: pdfJobName.trim() || undefined,
       };
 
-      await generateEstimatePDF(quoteToExport, pdfOptions);
+      const { pdfUrl, filename } = await generateEstimatePDF(quoteToExport, pdfOptions);
+
+      // Clean up old URL if exists
+      setPdfPreviewUrl((oldUrl) => {
+        if (oldUrl) {
+          URL.revokeObjectURL(oldUrl);
+        }
+        return pdfUrl;
+      });
+
+      setPdfFilename(filename);
     } catch (error) {
       console.error('PDF generation error:', error);
-      alert('Error generating PDF. Please try again.');
     }
+  }, [customerName, pdfCustomNotes, pdfJobName]);
+
+  // Auto-update preview when quote or options change
+  useEffect(() => {
+    if (latestQuoteResult) {
+      updatePdfPreview();
+    }
+  }, [latestQuoteResult, updatePdfPreview]);
+
+  const handleDownloadPDF = () => {
+    if (!pdfPreviewUrl) {
+      alert('No quote available to download. Please generate a quote first.');
+      return;
+    }
+
+    // Download the current preview
+    const link = document.createElement('a');
+    link.href = pdfPreviewUrl;
+    link.download = pdfFilename;
+    link.click();
   };
 
   return (
     <div className="flex flex-col h-screen bg-gradient-to-b from-neutral-950 to-neutral-900">
       {/* Header */}
       <div className="border-b border-neutral-800/50 bg-neutral-950/80 backdrop-blur-xl sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="w-full px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative">
               <div className="absolute inset-0 bg-blue-500/20 blur-xl rounded-full"></div>
@@ -437,13 +462,17 @@ export default function App() {
         </div>
       </div>
 
-      {/* Messages */}
-      <div
-        className="flex-1 overflow-y-auto"
-        ref={messagesContainerRef}
-        onScroll={handleScroll}
-      >
-        <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Main Content: Split view */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left: Chat */}
+        <div className="flex flex-col flex-1">
+          {/* Messages */}
+          <div
+            className="flex-1 overflow-y-auto"
+            ref={messagesContainerRef}
+            onScroll={handleScroll}
+          >
+            <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 && (
             <div className="flex items-center justify-center min-h-[60vh]">
               <div className="text-center max-w-2xl space-y-8">
@@ -569,12 +598,12 @@ export default function App() {
             </div>
           ))}
           <div ref={messagesEndRef} />
-        </div>
-      </div>
+            </div>
+          </div>
 
-      {/* Input Area */}
-      <div className="border-t border-neutral-800/50 bg-neutral-950/80 backdrop-blur-xl sticky bottom-0">
-        <div className="max-w-4xl mx-auto px-6 py-6">
+          {/* Input Area */}
+          <div className="border-t border-neutral-800/50 bg-neutral-950/80 backdrop-blur-xl">
+            <div className="max-w-4xl mx-auto px-6 py-6">
           <div className="relative flex items-end gap-3 bg-neutral-900 rounded-3xl border border-neutral-800 p-2 focus-within:border-blue-500/50 transition-all">
             <textarea
               value={input}
@@ -598,9 +627,35 @@ export default function App() {
               )}
             </button>
           </div>
-          <p className="text-xs text-neutral-500 mt-3 text-center">
-            Try: "quote 1000 postcards 6x9" • "5k envelopes" • "500 booklets 16 pages"
-          </p>
+              <p className="text-xs text-neutral-500 mt-3 text-center">
+                Try: "quote 1000 postcards 6x9" • "5k envelopes" • "500 booklets 16 pages"
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: PDF Preview */}
+        <div className="w-[500px] border-l border-neutral-800 bg-neutral-900/50 flex flex-col">
+          <div className="px-4 py-3 border-b border-neutral-800 bg-neutral-950/80">
+            <h3 className="text-sm font-medium text-white">PDF Preview</h3>
+            {pdfFilename && (
+              <p className="text-xs text-neutral-500 mt-1">{pdfFilename}</p>
+            )}
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4 overflow-hidden">
+            {pdfPreviewUrl ? (
+              <iframe
+                src={pdfPreviewUrl}
+                className="w-full h-full border border-neutral-800 rounded-lg bg-white"
+                title="PDF Preview"
+              />
+            ) : (
+              <div className="text-center text-neutral-500">
+                <div className="text-4xl mb-3">📄</div>
+                <p className="text-sm">Generate a quote to see PDF preview</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
