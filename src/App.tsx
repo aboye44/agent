@@ -929,6 +929,18 @@ if qa_checks_passed < qa_checks_total:
         );
       });
 
+      // Handle content block delta for code execution output
+      stream.on('contentBlockDelta', (delta: any) => {
+        if (delta.type === 'content_block_delta' && delta.delta?.type === 'text_delta') {
+          fullResponse += delta.delta.text;
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
+            )
+          );
+        }
+      });
+
       stream.on('error', (error: unknown) => {
         console.error('Stream error:', error);
         throw error;
@@ -937,11 +949,32 @@ if qa_checks_passed < qa_checks_total:
       const finalMessage: any = await stream.finalMessage();
 
       if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
-        const completeText = finalMessage.content
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('');
-        if (completeText && completeText !== fullResponse) {
+        // Extract all content: text blocks AND code execution output
+        let completeText = '';
+
+        for (const block of finalMessage.content) {
+          if (block.type === 'text') {
+            completeText += block.text;
+          } else if (block.type === 'tool_use' && block.name === 'code_execution') {
+            // Code execution output can be in different properties
+            const output = block.output || block.result || block.text || '';
+            if (output) {
+              completeText += output;
+            }
+          } else if (block.type === 'tool_result') {
+            // Handle tool result blocks if they exist
+            const result = typeof block.content === 'string' ? block.content :
+                          Array.isArray(block.content) ?
+                            block.content.map((c: any) => c.text || c).join('') :
+                            '';
+            if (result) {
+              completeText += result;
+            }
+          }
+        }
+
+        // Always update with the complete final text
+        if (completeText) {
           setMessages(prev =>
             prev.map(msg =>
               msg.id === assistantMessageId ? { ...msg, content: completeText } : msg
