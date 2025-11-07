@@ -948,18 +948,22 @@ if qa_checks_passed < qa_checks_total:
 
       const finalMessage: any = await stream.finalMessage();
 
+      console.log('Final message:', finalMessage);
+      console.log('Final message content:', JSON.stringify(finalMessage.content, null, 2));
+
       if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
         // Extract all content: text blocks AND code execution output
         let completeText = '';
 
         for (const block of finalMessage.content) {
+          console.log('Processing block:', block.type, block);
           if (block.type === 'text') {
             completeText += block.text;
           } else if (block.type === 'tool_use' && block.name === 'code_execution') {
             // Code execution output can be in different properties
             const output = block.output || block.result || block.text || '';
             if (output) {
-              completeText += output;
+              completeText += '\n\n' + output;
             }
           } else if (block.type === 'tool_result') {
             // Handle tool result blocks if they exist
@@ -968,10 +972,12 @@ if qa_checks_passed < qa_checks_total:
                             block.content.map((c: any) => c.text || c).join('') :
                             '';
             if (result) {
-              completeText += result;
+              completeText += '\n\n' + result;
             }
           }
         }
+
+        console.log('Complete text:', completeText);
 
         // Always update with the complete final text
         if (completeText) {
