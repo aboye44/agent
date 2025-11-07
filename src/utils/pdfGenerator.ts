@@ -28,6 +28,7 @@ export async function generateEstimatePDF(
     orientation: 'portrait',
     unit: 'mm',
     format: 'letter',
+    compress: true, // Enable PDF compression
   });
 
   const { specs, equipment, stock, costs, quote, mailingServices, totalWithMailing } = result;
@@ -53,6 +54,20 @@ export async function generateEstimatePDF(
       logoImg.onerror = reject;
     });
 
+    // Compress image using canvas to reduce PDF size
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d')!;
+
+    // Set canvas size to a reasonable resolution
+    const scale = 2; // 2x for retina displays
+    canvas.width = logoImg.width * scale;
+    canvas.height = logoImg.height * scale;
+    ctx.scale(scale, scale);
+    ctx.drawImage(logoImg, 0, 0, logoImg.width, logoImg.height);
+
+    // Convert to compressed JPEG (much smaller than PNG)
+    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+
     // Calculate dimensions to fit in box without stretching
     const maxWidth = 50;
     const maxHeight = 18;
@@ -74,7 +89,7 @@ export async function generateEstimatePDF(
     const logoX = 15 + (maxWidth - logoWidth) / 2;
     const logoY = yPos - 5 + (maxHeight - logoHeight) / 2;
 
-    doc.addImage(logoImg, 'PNG', logoX, logoY, logoWidth, logoHeight);
+    doc.addImage(compressedDataUrl, 'JPEG', logoX, logoY, logoWidth, logoHeight);
   } catch (error) {
     // Fallback if logo fails to load
     doc.setFillColor(...COLORS.lightGray);
@@ -346,16 +361,29 @@ export async function generateEstimatePDF(
 
   doc.setFontSize(7);
   doc.setTextColor(...COLORS.gray);
-  doc.text('Mail Processing Associates • Veteran-Owned • Lakeland, FL', 15, yPos + 4);
+  doc.text('Mail Processing Associates • Lakeland, FL', 15, yPos + 4);
   doc.text(`Estimate ${estimateNumber}`, 195, yPos + 4, { align: 'right' });
 
   // ==========================================
-  // SAVE
+  // SAVE / PREVIEW
   // ==========================================
 
   const filename = options.customerName
     ? `MPA-Estimate-${estimateNumber}-${options.customerName.replace(/\s+/g, '-')}.pdf`
     : `MPA-Estimate-${estimateNumber}.pdf`;
 
-  doc.save(filename);
+  // Open in new window for print preview
+  const pdfBlob = doc.output('blob');
+  const pdfUrl = URL.createObjectURL(pdfBlob);
+  const printWindow = window.open(pdfUrl, '_blank');
+
+  // Also offer download
+  if (printWindow) {
+    printWindow.onload = () => {
+      printWindow.document.title = filename;
+    };
+  } else {
+    // Fallback to direct download if popup blocked
+    doc.save(filename);
+  }
 }
