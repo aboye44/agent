@@ -118,7 +118,7 @@ export default function App() {
         /\b(booklet|fold|EDDM|mailing|mail it|throughout|debug)\b/i.test(currentInput) ||
         currentInput.length > 100 ||
         needsDeepContext;
-      const maxTokens = isComplex ? 3500 : 2200;
+      const maxTokens = isComplex ? 8000 : 5000;
 
       // Insert a “thinking” stub that we’ll overwrite
       const assistantMessageId = Date.now();
