@@ -919,49 +919,14 @@ if qa_checks_passed < qa_checks_total:
 
       // Stream handlers
       let fullResponse = '';
-      console.log('Stream created, waiting for events...');
-
-      // Listen to ALL stream events for debugging
-      stream.on('streamEvent', (event: any) => {
-        console.log('Stream event:', event.type, event);
-      });
-
-      stream.on('message', (message: any) => {
-        console.log('Message event:', message);
-      });
 
       stream.on('text', (text: string) => {
-        console.log('Text event:', text);
         fullResponse += text;
         setMessages(prev =>
           prev.map(msg =>
             msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
           )
         );
-      });
-
-      stream.on('contentBlock', (block: any) => {
-        console.log('Content block event:', block);
-      });
-
-      // Handle content block delta for code execution output
-      stream.on('contentBlockDelta', (delta: any) => {
-        console.log('Content block delta:', delta);
-        console.log('Delta details - index:', delta.index, 'delta:', JSON.stringify(delta.delta, null, 2));
-
-        if (delta.type === 'content_block_delta') {
-          if (delta.delta?.type === 'text_delta') {
-            fullResponse += delta.delta.text;
-            setMessages(prev =>
-              prev.map(msg =>
-                msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
-              )
-            );
-          } else if (delta.delta?.type === 'input_json_delta') {
-            // Code execution input is being streamed
-            console.log('Code execution input delta:', delta.delta.partial_json);
-          }
-        }
       });
 
       stream.on('error', (error: unknown) => {
@@ -971,40 +936,22 @@ if qa_checks_passed < qa_checks_total:
 
       const finalMessage: any = await stream.finalMessage();
 
-      console.log('Final message:', finalMessage);
-      console.log('Final message content:', JSON.stringify(finalMessage.content, null, 2));
-
       if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
         // Extract all content: text blocks AND code execution output
         let completeText = '';
 
         for (const block of finalMessage.content) {
-          console.log('Processing block:', block.type, block);
           if (block.type === 'text') {
             completeText += block.text;
           } else if ((block.type === 'tool_use' || block.type === 'server_tool_use') &&
                      (block.name === 'code_execution' || block.name === 'bash_code_execution')) {
             // Code execution output can be in different properties
             const output = block.output || block.result || block.text || '';
-            console.log('Tool use block output:', output);
             if (output) {
               completeText += '\n\n' + output;
-            } else {
-              console.warn('No output found in tool block:', block);
-            }
-          } else if (block.type === 'tool_result') {
-            // Handle tool result blocks if they exist
-            const result = typeof block.content === 'string' ? block.content :
-                          Array.isArray(block.content) ?
-                            block.content.map((c: any) => c.text || c).join('') :
-                            '';
-            if (result) {
-              completeText += '\n\n' + result;
             }
           }
         }
-
-        console.log('Complete text:', completeText);
 
         // Always update with the complete final text
         if (completeText) {
