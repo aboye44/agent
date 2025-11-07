@@ -88,8 +88,10 @@ export default function App() {
         dangerouslyAllowBrowser: true
       });
 
-      // Context depth
+      // Check if this is a quote request
       const isQuoteRequest = /\b(quote|price|cost|how much)\b/i.test(currentInput);
+
+      // Context depth
       const needsDeepContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
       const contextDepth = needsDeepContext ? 5 : 3;
 
@@ -113,12 +115,7 @@ export default function App() {
         }
       ];
 
-      // Adaptive token limit
-      const isComplex =
-        /\b(booklet|fold|EDDM|mailing|mail it|throughout|debug)\b/i.test(currentInput) ||
-        currentInput.length > 100 ||
-        needsDeepContext;
-      const maxTokens = isComplex ? 8000 : 5000;
+      const maxTokens = 2000; // Much smaller - just for parsing
 
       // Insert a “thinking” stub that we’ll overwrite
       const assistantMessageId = Date.now();
@@ -132,17 +129,18 @@ export default function App() {
         }
       ]);
 
-      // STREAM CALL — proper block messages, system, and tool auto
-      const stream = await client.beta.messages.stream({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: maxTokens,
-        temperature: 0,
-        betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
-        tool_choice: { type: 'auto' },
-        tools: [{ type: 'code_execution_20250825', name: 'code_execution' }],
+      // If it's a quote request, use local calculation
+      if (isQuoteRequest) {
+        // Import calculation engine
+        const { calculateQuote } = await import('./engine/quoteCalculator');
+        const { formatQuote } = await import('./engine/quoteFormatter');
 
-        // Pass the user's latest raw text into Python as job_text (so EDDM/mailing detection works)
-        system: [
+        // Use Claude ONLY to parse specs into JSON
+        const stream = await client.beta.messages.stream({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: maxTokens,
+          temperature: 0,
+          system: [
           {
             type: 'text',
             text:
