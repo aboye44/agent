@@ -1,56 +1,381 @@
-import html2pdf from 'html2pdf.js';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { QuoteResult } from '../types/quote';
-import { prepareEstimateData, generateEstimateHTML } from './estimateTemplate';
 
 interface PDFOptions {
   customerName?: string;
 }
 
+// Professional color palette
+const COLORS = {
+  primary: [37, 99, 235], // Blue-600
+  primaryLight: [219, 234, 254], // Blue-100
+  dark: [15, 23, 42], // Slate-900
+  gray: [107, 114, 128], // Gray-500
+  lightGray: [229, 231, 235], // Gray-200
+  white: [255, 255, 255],
+};
+
 /**
- * Generate a professional estimate PDF using HTML template
- * Clean, modern design matching MailShop style
+ * Generate a professional estimate PDF
+ * Clean, modern design with itemized sections
  */
 export async function generateEstimatePDF(
   result: QuoteResult,
   options: PDFOptions = {}
 ): Promise<void> {
-  // Prepare template data
-  const templateData = prepareEstimateData(result, options.customerName);
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'letter',
+  });
 
-  // Generate HTML
-  const html = generateEstimateHTML(templateData);
+  const { specs, equipment, stock, costs, quote, mailingServices, totalWithMailing } = result;
 
-  // Create temporary container
-  const container = document.createElement('div');
-  container.innerHTML = html;
-  container.style.position = 'absolute';
-  container.style.left = '-9999px';
-  document.body.appendChild(container);
+  // Generate estimate number
+  const now = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
+  const timeStr = now.getTime().toString().slice(-4);
+  const estimateNumber = `EST-${dateStr}-${timeStr}`;
 
-  // Configure html2pdf options
-  const opt = {
-    margin: [10, 10, 10, 10],
-    filename: options.customerName
-      ? `MPA-Estimate-${templateData.estimateNumber}-${options.customerName.replace(/\s+/g, '-')}.pdf`
-      : `MPA-Estimate-${templateData.estimateNumber}.pdf`,
-    image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: {
-      scale: 2,
-      useCORS: true,
-      logging: false,
+  let yPos = 20;
+
+  // ==========================================
+  // HEADER
+  // ==========================================
+
+  // Logo area (left)
+  doc.setFillColor(...COLORS.lightGray);
+  doc.roundedRect(15, yPos - 5, 50, 18, 2, 2, 'F');
+  doc.setFontSize(11);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MPA', 40, yPos + 5, { align: 'center' });
+
+  // Company info
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.gray);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Mail Processing Associates', 15, yPos + 20);
+  doc.text('Lakeland, FL', 15, yPos + 24);
+
+  // Estimate badge (right)
+  doc.setFillColor(...COLORS.primary);
+  doc.roundedRect(150, yPos - 5, 45, 10, 2, 2, 'F');
+  doc.setTextColor(...COLORS.white);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ESTIMATE', 172.5, yPos + 1, { align: 'center' });
+
+  // Estimate details
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.dark);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Estimate #: ${estimateNumber}`, 195, yPos + 8, { align: 'right' });
+  doc.text(`Date: ${now.toLocaleDateString()}`, 195, yPos + 12, { align: 'right' });
+
+  yPos += 35;
+
+  // ==========================================
+  // CUSTOMER & JOB DETAILS
+  // ==========================================
+
+  // Customer card
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.setFillColor(...COLORS.white);
+  doc.roundedRect(15, yPos, 85, 20, 2, 2, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PREPARED FOR', 18, yPos + 5);
+
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.dark);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Customer:', 18, yPos + 10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(options.customerName || 'Not specified', 38, yPos + 10);
+
+  // Job card
+  doc.setFillColor(...COLORS.white);
+  doc.roundedRect(105, yPos, 90, 20, 2, 2, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('JOB DETAILS', 108, yPos + 5);
+
+  doc.setFontSize(8);
+  doc.setTextColor(...COLORS.dark);
+  doc.setFont('helvetica', 'normal');
+  const size = `${specs.finishedWidth}×${specs.finishedHeight}`;
+  const colorDesc = specs.color === '4/4' ? '4/4 full color' : specs.color;
+  let productName = specs.productType;
+  if (specs.productType === 'postcard') productName = 'postcards';
+  if (specs.productType === 'flyer') productName = 'flyers';
+  if (specs.productType === 'letter') productName = 'letters';
+
+  doc.text(`${size} ${colorDesc} ${productName}`, 108, yPos + 10);
+  doc.setTextColor(...COLORS.gray);
+  doc.text(`Stock: ${stock.name}`, 108, yPos + 15);
+
+  yPos += 28;
+
+  // ==========================================
+  // ITEMIZED TABLE
+  // ==========================================
+
+  const tableData: any[] = [];
+
+  // PRINTING SECTION
+  tableData.push([
+    {
+      content: 'PRINTING',
+      colSpan: 5,
+      styles: {
+        fillColor: COLORS.primaryLight,
+        textColor: COLORS.primary,
+        fontStyle: 'bold',
+        fontSize: 9,
+      },
     },
-    jsPDF: {
-      unit: 'mm',
-      format: 'letter',
-      orientation: 'portrait'
-    },
-  };
+  ]);
 
-  try {
-    // Generate PDF
-    await html2pdf().set(opt).from(container).save();
-  } finally {
-    // Clean up
-    document.body.removeChild(container);
+  tableData.push([
+    specs.quantity.toLocaleString(),
+    'PRINTING',
+    `${size} ${colorDesc} ${productName} on ${stock.name}`,
+    `$${(quote / specs.quantity).toFixed(3)}`,
+    `$${quote.toFixed(2)}`,
+  ]);
+
+  tableData.push([
+    '',
+    '',
+    '',
+    {
+      content: 'Printing Subtotal:',
+      styles: { fontStyle: 'bold', halign: 'right' },
+    },
+    {
+      content: `$${quote.toFixed(2)}`,
+      styles: { fontStyle: 'bold', fillColor: COLORS.lightGray },
+    },
+  ]);
+
+  // MAILING SERVICES SECTIONS
+  if (mailingServices) {
+    for (const section of mailingServices.sections) {
+      // Section header
+      tableData.push([
+        {
+          content: section.name,
+          colSpan: 5,
+          styles: {
+            fillColor: COLORS.primaryLight,
+            textColor: COLORS.primary,
+            fontStyle: 'bold',
+            fontSize: 9,
+          },
+        },
+      ]);
+
+      // Section items
+      for (const item of section.items) {
+        tableData.push([
+          item.quantity.toLocaleString(),
+          section.name,
+          item.description,
+          `$${item.unitPrice.toFixed(3)}`,
+          `$${item.total.toFixed(2)}`,
+        ]);
+      }
+
+      // Section subtotal
+      tableData.push([
+        '',
+        '',
+        '',
+        {
+          content: `${section.name} Subtotal:`,
+          styles: { fontStyle: 'bold', halign: 'right' },
+        },
+        {
+          content: `$${section.subtotal.toFixed(2)}`,
+          styles: { fontStyle: 'bold', fillColor: COLORS.lightGray },
+        },
+      ]);
+    }
   }
+
+  // Generate table
+  autoTable(doc, {
+    startY: yPos,
+    head: [['QTY', 'SECTION', 'DESCRIPTION', 'UNIT PRICE', 'TOTAL']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: COLORS.dark,
+      textColor: COLORS.white,
+      fontSize: 8,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    bodyStyles: {
+      fontSize: 8,
+      textColor: COLORS.dark,
+    },
+    columnStyles: {
+      0: { cellWidth: 25, halign: 'right' },
+      1: { cellWidth: 35, halign: 'left' },
+      2: { cellWidth: 85, halign: 'left' },
+      3: { cellWidth: 25, halign: 'right' },
+      4: { cellWidth: 25, halign: 'right' },
+    },
+    didParseCell: (data) => {
+      // Skip styling for section headers (already styled)
+      if (data.cell.raw && typeof data.cell.raw === 'object' && 'content' in data.cell.raw) {
+        return;
+      }
+    },
+  });
+
+  yPos = (doc as any).lastAutoTable.finalY + 5;
+
+  // Postage note
+  if (mailingServices) {
+    doc.setFontSize(8);
+    doc.setTextColor(...COLORS.gray);
+    doc.setFont('helvetica', 'italic');
+    const postageNote = specs.isEDDM
+      ? 'USPS EDDM postage billed at actuals (not calculated)'
+      : 'USPS postage billed at actuals (not calculated)';
+    doc.text(postageNote, 195, yPos, { align: 'right' });
+    yPos += 8;
+  }
+
+  // ==========================================
+  // TOTALS
+  // ==========================================
+
+  const totalsData: any[] = [];
+
+  if (mailingServices) {
+    totalsData.push([
+      'Services Total:',
+      `$${(quote + mailingServices.total).toFixed(2)}`,
+    ]);
+  }
+
+  totalsData.push([
+    {
+      content: 'ESTIMATE TOTAL:',
+      styles: {
+        fontStyle: 'bold',
+        fontSize: 10,
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
+      },
+    },
+    {
+      content: `$${(totalWithMailing || quote).toFixed(2)}`,
+      styles: {
+        fontStyle: 'bold',
+        fontSize: 10,
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
+      },
+    },
+  ]);
+
+  autoTable(doc, {
+    startY: yPos,
+    body: totalsData,
+    theme: 'plain',
+    bodyStyles: {
+      fontSize: 9,
+      halign: 'right',
+    },
+    columnStyles: {
+      0: { cellWidth: 160 },
+      1: { cellWidth: 35, fontStyle: 'bold' },
+    },
+    margin: { left: 0 },
+  });
+
+  yPos = (doc as any).lastAutoTable.finalY + 10;
+
+  // ==========================================
+  // PRODUCTION DETAILS & TERMS
+  // ==========================================
+
+  // Production Details box
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.setFillColor(...COLORS.white);
+  doc.roundedRect(15, yPos, 85, 30, 2, 2, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('PRODUCTION DETAILS', 18, yPos + 5);
+
+  doc.setFontSize(7);
+  doc.setTextColor(...COLORS.dark);
+  doc.setFont('helvetica', 'normal');
+
+  let detailY = yPos + 10;
+  doc.text(`• Equipment: ${equipment.name}`, 18, detailY);
+  detailY += 4;
+  doc.text(`• Stock: ${stock.name}`, 18, detailY);
+  detailY += 4;
+  if (result.imposition.upCount > 1) {
+    doc.text(`• Imposition: ${result.imposition.upCount}-up`, 18, detailY);
+    detailY += 4;
+  }
+  doc.text(`• Paper: $${costs.paperCost.toFixed(2)} | Clicks: $${costs.clickCost.toFixed(2)}`, 18, detailY);
+
+  // Terms box
+  doc.setFillColor(...COLORS.white);
+  doc.roundedRect(105, yPos, 90, 30, 2, 2, 'FD');
+
+  doc.setFontSize(9);
+  doc.setTextColor(...COLORS.primary);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TERMS & NOTES', 108, yPos + 5);
+
+  doc.setFontSize(7);
+  doc.setTextColor(...COLORS.dark);
+  doc.setFont('helvetica', 'normal');
+
+  let termY = yPos + 10;
+  doc.text('• Estimate valid 14 days', 108, termY);
+  termY += 4;
+  doc.text('• Postage billed at actuals, funded prior to drop', 108, termY);
+  termY += 4;
+  doc.text('• Production starts after proof approval', 108, termY);
+
+  yPos += 38;
+
+  // ==========================================
+  // FOOTER
+  // ==========================================
+
+  doc.setDrawColor(...COLORS.lightGray);
+  doc.line(15, yPos, 195, yPos);
+
+  doc.setFontSize(7);
+  doc.setTextColor(...COLORS.gray);
+  doc.text('Mail Processing Associates • Veteran-Owned • Lakeland, FL', 15, yPos + 4);
+  doc.text(`Estimate ${estimateNumber}`, 195, yPos + 4, { align: 'right' });
+
+  // ==========================================
+  // SAVE
+  // ==========================================
+
+  const filename = options.customerName
+    ? `MPA-Estimate-${estimateNumber}-${options.customerName.replace(/\s+/g, '-')}.pdf`
+    : `MPA-Estimate-${estimateNumber}.pdf`;
+
+  doc.save(filename);
 }
