@@ -844,7 +844,7 @@ if wants_mailing:
         bundling = qty * 0.035
         mailing_services_total += bundling
         mailing_section += "\\nMail Services (EDDM):\\n"
-        mailing_section += f"• EDDM Bundling & Paperwork: {{qty:,}} × $$0.035 = $${{bundling:.2f}}\\n"
+        mailing_section += "• EDDM Bundling & Paperwork: {:,} × $0.035 = ${:.2f}\\n".format(qty, bundling)
         mailing_section += "• Postage: USPS EDDM postage billed at actuals (not calculated)\\n"
     else:
         # Addressed bundles by product type
@@ -853,14 +853,14 @@ if wants_mailing:
             svc = qty * 0.059
             mailing_services_total += svc
             mailing_section += "\\nMail Services (Addressed):\\n"
-            mailing_section += f"• NCOA/CASS + Addressing + Bulk Prep: {{qty:,}} × $$0.059 = $${{svc:.2f}}\\n"
+            mailing_section += "• NCOA/CASS + Addressing + Bulk Prep: {:,} × $0.059 = ${:.2f}\\n".format(qty, svc)
             mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
         elif product_type in ["flyer", "brochure"]:
             # Self-mailers (flats): $0.109/pc
             svc = qty * 0.109
             mailing_services_total += svc
             mailing_section += "\\nMail Services (Self-mailer):\\n"
-            mailing_section += f"• Addressing + Double Tab + Flats Prep: {{qty:,}} × $$0.109 = $${{svc:.2f}}\\n"
+            mailing_section += "• Addressing + Double Tab + Flats Prep: {:,} × $0.109 = ${:.2f}\\n".format(qty, svc)
             mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
         elif product_type == "letter" or is_letter:
             # Letters: $0.079/pc for 1 insert, +$0.01 per extra
@@ -869,7 +869,7 @@ if wants_mailing:
             svc = qty * base
             mailing_services_total += svc
             mailing_section += "\\nMail Services (Letters):\\n"
-            mailing_section += f"• NCOA + Address + Machine Insert ({{num_inserts}} piece): {{qty:,}} × $${{base:.3f}} = $${{svc:.2f}}\\n"
+            mailing_section += "• NCOA + Address + Machine Insert ({} piece): {:,} × ${:.3f} = ${:.2f}\\n".format(num_inserts, qty, base, svc)
             mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
 
 # Print mail block and combined total
@@ -877,7 +877,7 @@ if mailing_services_total > 0:
     print(mailing_section)
     total_due = quote + mailing_services_total
     label = "EDDM Bundling" if is_eddm else "Mail Services"
-    print(f"TOTAL (Printing + {{label}}): $${{total_due:,.2f}}")
+    print("TOTAL (Printing + {}): ${:,.2f}".format(label, total_due))
 
 # Guard: EDDM with addresses warning
 if "eddm" in job_text_l and ("address" in job_text_l or "addresses" in job_text_l):
