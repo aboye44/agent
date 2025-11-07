@@ -2,8 +2,15 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Copy, RefreshCw, User } from 'lucide-react';
 import Anthropic from '@anthropic-ai/sdk';
 
+type ChatMsg = {
+  id?: string | number;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp?: string;
+};
+
 export default function App() {
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -29,41 +36,26 @@ export default function App() {
     }
   }, [messages, autoScroll]);
 
-  // Detect when user scrolls up manually
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const container = e.currentTarget;
-    const isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+    const isAtBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight < 100;
     setAutoScroll(isAtBottom);
   };
 
-  // Add custom scrollbar styles
   useEffect(() => {
     const style = document.createElement('style');
     style.textContent = `
-      /* Custom scrollbar for webkit browsers */
-      ::-webkit-scrollbar {
-        width: 8px;
-      }
-      
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      
+      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb {
         background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
-        border-radius: 10px;
-        transition: background 0.2s;
+        border-radius: 10px; transition: background 0.2s;
       }
-      
       ::-webkit-scrollbar-thumb:hover {
         background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
       }
-      
-      /* Custom scrollbar for Firefox */
-      * {
-        scrollbar-width: thin;
-        scrollbar-color: #3b82f6 transparent;
-      }
+      * { scrollbar-width: thin; scrollbar-color: #3b82f6 transparent; }
     `;
     document.head.appendChild(style);
     return () => document.head.removeChild(style);
@@ -72,10 +64,9 @@ export default function App() {
   const handleSubmit = async () => {
     if (!input.trim() || isLoading) return;
 
-    // Re-enable auto-scroll when user sends a new message
     setAutoScroll(true);
 
-    const userMessage = {
+    const userMessage: ChatMsg = {
       role: 'user',
       content: input,
       timestamp: new Date().toISOString()
@@ -88,74 +79,82 @@ export default function App() {
 
     try {
       const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
       if (!apiKey) {
         throw new Error('API key not found. Please add VITE_ANTHROPIC_API_KEY to your .env file.');
       }
 
       const client = new Anthropic({
-        apiKey: apiKey,
+        apiKey,
         dangerouslyAllowBrowser: true
       });
 
-      // Smart context - optimize depth based on query type
+      // Context depth
       const isQuoteRequest = /\b(quote|price|cost|how much)\b/i.test(currentInput);
-      const needsDeepContext = /\b(add|change|update|also)\b/i.test(currentInput);
-      
-      // Adaptive context depth: 2-3 for simple quotes, 5 for modifications
-      let recentMessages: Array<{role: 'user' | 'assistant', content: string}> = [];
-      if (isQuoteRequest || needsDeepContext) {
-        const contextDepth = needsDeepContext ? 5 : 3;
-        // Filter out any thinking indicator messages and only include valid message pairs
-        const validMessages = messages.filter(msg => 
-          msg.content && 
-          msg.content !== '🔄 Calculating your quote...' &&
-          msg.content.trim().length > 0
-        );
-        recentMessages = validMessages.slice(-contextDepth).map((msg: any) => ({ 
-          role: msg.role, 
-          content: msg.content 
-        }));
-      }
+      const needsDeepContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
+      const contextDepth = needsDeepContext ? 5 : 3;
 
-      recentMessages.push({
-        role: 'user',
-        content: currentInput
-      });
-      
-      // Adaptive token limit: detect complex queries
-      const isComplex = /\b(booklet|fold|EDDM|mailing|mail it|throughout|debug)\b/i.test(currentInput) || 
-                        currentInput.length > 100 || 
-                        needsDeepContext;
+      // Filter previous messages (drop thinking stubs)
+      const validMessages = messages.filter(
+        m => m.content && m.content !== '🔄 Calculating your quote...' && m.content.trim().length > 0
+      );
+      const history = (isQuoteRequest || needsDeepContext)
+        ? validMessages.slice(-contextDepth)
+        : [];
+
+      // Build Anthropic message blocks (must be block format)
+      const messageBlocks = [
+        ...history.map(m => ({
+          role: m.role,
+          content: [{ type: 'text', text: m.content }]
+        })),
+        {
+          role: 'user' as const,
+          content: [{ type: 'text', text: currentInput }]
+        }
+      ];
+
+      // Adaptive token limit
+      const isComplex =
+        /\b(booklet|fold|EDDM|mailing|mail it|throughout|debug)\b/i.test(currentInput) ||
+        currentInput.length > 100 ||
+        needsDeepContext;
       const maxTokens = isComplex ? 3500 : 2200;
 
+      // Insert a “thinking” stub that we’ll overwrite
       const assistantMessageId = Date.now();
-      setMessages(prev => [...prev, {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: '🔄 Calculating your quote...',
-        timestamp: new Date().toISOString()
-      }]);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '🔄 Calculating your quote...',
+          timestamp: new Date().toISOString()
+        }
+      ]);
 
-      // Debug logging
-      console.log('API Request Config:', {
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: maxTokens,
-        messages: recentMessages,
-        messageCount: recentMessages.length
-      });
-
-      // Stream response with inline pricing knowledge (no inner try)
+      // STREAM CALL — proper block messages, system, and tool auto
       const stream = await client.beta.messages.stream({
         model: 'claude-sonnet-4-5-20250929',
         max_tokens: maxTokens,
         temperature: 0,
         betas: ['code-execution-2025-08-25', 'prompt-caching-2024-07-31'],
-        messages: recentMessages,
+        tool_choice: { type: 'auto' },
+        tools: [{ type: 'code_execution_20250825', name: 'code_execution' }],
+
+        // Pass the user's latest raw text into Python as job_text (so EDDM/mailing detection works)
         system: [
           {
             type: 'text',
-            text: `You are chatMPA, an AI quoting assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
+            text:
+`# Inject latest user message so Python can detect mailing intent (EDDM/Addressed)
+job_text = """${currentInput.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$').replace(/"/g, '\\"')}"""
+# QUIET MODE by default unless 'debug' appears in user text`,
+            cache_control: { type: 'ephemeral' }
+          },
+          {
+            type: 'text',
+            text:
+`You are chatMPA, an AI quoting assistant for Mail Processing Associates (MPA), a commercial printing and direct mail company in Lakeland, Florida.
 
 ════════════════════════════════════════════════════════════════
 ⚠️⚠️⚠️ CRITICAL RULE #1 - READ BEFORE EVERY RESPONSE ⚠️⚠️⚠️
@@ -177,6 +176,15 @@ BEFORE responding to ANY message, complete this checklist:
    - If you found 0-1/4 specs → Ask for all missing specs
 
 ☐ Step 4: NEVER ask for a spec that was already provided in a previous message
+
+EXAMPLE OF CORRECT BEHAVIOR:
+Message 1 (user): "quote 500 postcards"
+Your extraction: Quantity=500 ✓, Size=?, Color=?, Stock=?
+Your response: Ask for size, color, stock
+
+Message 2 (user): "6x9 4/4 14pt"  
+Your extraction: Quantity=500 ✓ (from msg 1), Size=6x9 ✓, Color=4/4 ✓, Stock=14pt ✓
+Your response: CALCULATE IMMEDIATELY (all 4 found)
 
 ════════════════════════════════════════════════════════════════
 
@@ -378,8 +386,8 @@ Print: TOTAL (Printing + [Mail Services/EDDM Bundling]): $X,XXX.XX`,
           },
           {
             type: 'text',
-            text: `
-════════════════════════════════════════════════════════════════
+            text:
+`════════════════════════════════════════════════════════════════
 REFERENCE: STOCK DATABASE & EQUIPMENT
 ════════════════════════════════════════════════════════════════
 
@@ -395,6 +403,26 @@ ENVELOPE PRESSES:
 - P-07 Colormax Env: Not used at MPA (disabled)
 
 === COMPLETE MPA STOCK DATABASE (All 99 SKUs) ===
+
+# LETTER/COPY PAPER SELECTION LOGIC
+When quoting letters (8.5×11), follow this decision tree:
+
+1. IF user explicitly specifies a stock (e.g., "100# gloss text", "Endurance 100# gloss", "premium paper"):
+   → HONOR their request - use the specified stock
+   → Some letters require premium paper (letterhead, marketing, certificates)
+   → Example: "letters on 100# gloss text" → Use SKU 10735823 @ $0.0505
+   
+2. IF user gives generic request (e.g., "letters 4/0", "letters on white paper", "60# white text"):
+   → DEFAULT to: Williamsburg 60# Smooth Offset @ $0.0125/sheet (SKU 63352)
+   → Pre-cut to 8.5×11 (no waste, no cutting labor)
+   → Best total cost for standard letter printing
+   
+3. The system KNOWS about cheaper 11×17 2-up options (SKU 66020 @ $0.00889/letter, SKU 66022 @ $0.0245/letter)
+   BUT these require ~$60 in cutting labor which makes them MORE expensive than pre-cut Williamsburg
+   
+4. Text stocks (80#-100# gloss/silk) are valid for BOTH:
+   - Booklet interiors (standard use)
+   - Premium letters (when explicitly requested)
 
 LETTER PAPER STOCKS:
 SKU 63352: Williamsburg 60# Smooth @ $0.0125 (8.5×11) ⭐ DEFAULT
@@ -541,29 +569,21 @@ SHOP MINIMUM: $75.00`,
           },
           {
             type: 'text',
-            text: `
-════════════════════════════════════════════════════════════════
+            text:
+`════════════════════════════════════════════════════════════════
 PYTHON CALCULATION TEMPLATE
 ════════════════════════════════════════════════════════════════
 
 import math
 
-# === CAPTURE USER INPUT FOR MAIL DETECTION ===
-job_text = "quote 1000 postcards 6x9 4/4 14pt with mailing"  # REPLACE WITH ACTUAL USER INPUT
-
-# Track spoilage application globally
+# job_text already injected by system as the latest user message
 spoilage_applied = False
-
-# Detect debug mode
-debug_mode = "debug" in job_text.lower()
+debug_mode = "debug" in job_text.lower() if isinstance(job_text, str) else False
 
 def compute_press_sheets(product_type, qty, up_count=None, pages=None):
-    """Canonical spoilage function - call EXACTLY ONCE per quote."""
     global spoilage_applied
-    
     if spoilage_applied:
         raise Exception("❌ ERROR: Duplicate spoilage path attempted.")
-    
     if product_type in ["postcard", "flyer", "brochure"]:
         raw_sheets = math.ceil(qty / up_count)
     elif product_type == "booklet":
@@ -576,92 +596,71 @@ def compute_press_sheets(product_type, qty, up_count=None, pages=None):
             raw_sheets = qty
     else:
         raw_sheets = qty
-    
+
     if qty <= 250:
-        spoilage_factor = 1.05
-        spoilage_pct = "5%"
+        spoilage_factor, spoilage_pct = 1.05, "5%"
     elif qty <= 500:
-        spoilage_factor = 1.04
-        spoilage_pct = "4%"
+        spoilage_factor, spoilage_pct = 1.04, "4%"
     elif qty <= 1000:
-        spoilage_factor = 1.03
-        spoilage_pct = "3%"
+        spoilage_factor, spoilage_pct = 1.03, "3%"
     elif qty <= 2500:
-        spoilage_factor = 1.025
-        spoilage_pct = "2.5%"
+        spoilage_factor, spoilage_pct = 1.025, "2.5%"
     else:
-        spoilage_factor = 1.02
-        spoilage_pct = "2%"
-    
+        spoilage_factor, spoilage_pct = 1.02, "2%"
+
     press_sheets = math.ceil(raw_sheets * spoilage_factor)
     spoilage_applied = True
-    
     return press_sheets, spoilage_pct, spoilage_factor
 
-# === INPUT PARAMETERS ===
+# === REQUIRED INPUTS (Claude: parse from conversation) ===
+# Provide sane defaults; overwrite from parsed specs
 qty = 1000
 finished_width = 6
 finished_height = 9
 color = "4/4"
 product_type = "postcard"
+total_pages = None  # must be provided for booklets
 
+# Infer simple flags
 is_envelope = product_type == "envelope"
 is_booklet = product_type == "booklet"
 is_letter = product_type == "letter" or (finished_width == 8.5 and finished_height == 11)
 is_flyer = product_type in ["flyer", "brochure", "sheet"]
 
-# === DEVICE ROUTING ===
+# DEVICE ROUTING
 if is_envelope:
     if "4/4" in color or "4/0" in color:
-        press = "P-04 Versant Color"
-        click_rate = 0.0336
+        press, click_rate = "P-04 Versant Color", 0.0336
     elif "1/1" in color or "1/0" in color:
-        press = "P-05 Versant B&W"
-        click_rate = 0.0080
+        press, click_rate = "P-05 Versant B&W", 0.0080
     else:
-        press = "P-05 Versant B&W"
-        click_rate = 0.0080
-    if debug_mode:
-        print("Device: " + press)
+        press, click_rate = "P-05 Versant B&W", 0.0080
 elif "1/0" in color or "1/1" in color:
-    press = "P-06 Nuvera B&W"
-    click_rate = 0.0027
-    if debug_mode:
-        print("Device: " + press)
+    press, click_rate = "P-06 Nuvera B&W", 0.0027
 else:
-    press = "P-01 Iridesse Color"
-    click_rate = 0.0416
-    if debug_mode:
-        print("Device: " + press)
+    press, click_rate = "P-01 Iridesse Color", 0.0416
 
-# === FLYER DEFAULT STOCK ===
-if is_flyer and "stock_cost_per_sheet" not in locals():
+# STOCK DEFAULT FOR FLYERS (13×19 100# gloss text)
+if is_flyer and "stock_cost_per_sheet" not in globals():
     stock_cost_per_sheet = 0.0505
     stock_name = "Endurance 100# Gloss Text (13×19)"
-    if debug_mode:
-        print("Stock: " + stock_name + " @ $" + format(stock_cost_per_sheet, '.4f') + "/sheet (default)")
 
-# === IMPOSITION ===
+# IMPOSITION
 if product_type in ["postcard", "flyer", "brochure"]:
     live_width = finished_width + 0.25
     live_height = finished_height + 0.25
     orient1 = math.floor(13 / live_width) * math.floor(19 / live_height)
     orient2 = math.floor(13 / live_height) * math.floor(19 / live_width)
     up_count = max(orient1, orient2)
-    if debug_mode:
-        print("Imposition: " + str(up_count) + "-up")
 elif product_type == "envelope":
     up_count = 1
-    if debug_mode:
-        print("Envelopes: 1-up")
 
-# === LETTERS PAPER PATH ===
+# LETTERS PAPER PATH
 if is_letter:
     effective_up = 1
     per_sheet_cost = 0.0125
     cutting_cost = 0
     paper_path = "pre-cut 8.5×11"
-    
     if qty >= 8000:
         precut_total = qty * 0.0125
         twoup_total = math.ceil(qty / 2) * 0.00889 + 60
@@ -670,45 +669,29 @@ if is_letter:
             per_sheet_cost = 0.00889
             cutting_cost = 60
             paper_path = "11×17 2-up + cut ($60)"
-    
     press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("letter", qty, effective_up)
-    if debug_mode:
-        print("Paper path: " + paper_path)
-        print("Spoilage: " + spoilage_pct)
-        print("Press Sheets: " + str(press_sheets))
 
-# === BOOKLET WITH MAKEREADY ===
+# BOOKLETS (require pages)
 if is_booklet:
-    if "total_pages" not in locals():
+    if total_pages is None:
         raise Exception("❌ Missing spec: total pages (including cover)")
-    
     sheets_per_booklet = 1 + (total_pages - 4) / 4
     if sheets_per_booklet != int(sheets_per_booklet):
         raise Exception("❌ Invalid page count: " + str(total_pages))
-    
     press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets("booklet", qty, pages=total_pages)
     cover_sheets = math.ceil(qty * 1 * spoilage_factor)
     interior_sheets = math.ceil(qty * ((total_pages - 4) / 4) * spoilage_factor)
     cover_sheets_with_makeready = cover_sheets + 50
-    
-    if debug_mode:
-        print("Pages: " + str(total_pages))
-        print("Cover sheets (+50 makeready): " + str(cover_sheets_with_makeready))
-        print("Interior sheets: " + str(interior_sheets))
-        print("Spoilage: " + spoilage_pct)
 
-# === CANONICAL SPOILAGE (non-letter, non-booklet) ===
+# NON-LETTER/BOOKLET SPOILAGE
 if not is_letter and not is_booklet:
     press_sheets, spoilage_pct, spoilage_factor = compute_press_sheets(
         product_type=product_type,
         qty=qty,
         up_count=up_count if product_type in ["postcard", "flyer", "brochure"] else None
     )
-    if debug_mode:
-        print("Spoilage: " + spoilage_pct)
-        print("Press Sheets: " + str(press_sheets))
 
-# === COST CALCULATION ===
+# COSTS
 if is_booklet:
     stock_cost_cover = 0.0965
     stock_cost_text = 0.0505
@@ -716,48 +699,37 @@ if is_booklet:
     cover_sides = 2 if "4/4" in color else 1
     interior_sides = 2 if "4/4" in color else 1
     click_cost = (cover_sheets_with_makeready * cover_sides * click_rate) + (interior_sheets * interior_sides * click_rate)
-    
     stitch_setup = 50.00
     stitch_run_rate = 0.0625
     overhead = 100.00
     base_finishing = stitch_setup + (qty * stitch_run_rate) + overhead
-    
-    if qty >= 10000:
-        discount = 0.20
-    elif qty >= 5000:
-        discount = 0.15
-    elif qty >= 1000:
-        discount = 0.10
-    else:
-        discount = 0.00
-    
+    if qty >= 10000: discount = 0.20
+    elif qty >= 5000: discount = 0.15
+    elif qty >= 1000: discount = 0.10
+    else: discount = 0.00
     finishing_cost = base_finishing * (1 - discount)
-    
-    if debug_mode and discount > 0:
-        print("Finishing volume discount: " + str(int(discount*100)) + "%")
-    
     total_cost = paper_cost + click_cost + finishing_cost
-    
+
 elif is_envelope:
     stock_cost_per_sheet = 0.0242
     paper_cost = press_sheets * stock_cost_per_sheet
     sides = 2 if ("4/4" in color or "1/1" in color) else 1
     click_cost = press_sheets * sides * click_rate
     total_cost = paper_cost + click_cost
-    
+
 elif is_letter:
     paper_cost = (press_sheets * per_sheet_cost) + cutting_cost
     sides = 1 if ("4/0" in color or "1/0" in color) else 2
     click_cost = press_sheets * sides * click_rate
     total_cost = paper_cost + click_cost
-    
+
 else:
     paper_cost = press_sheets * stock_cost_per_sheet
     sides = 2 if ("4/4" in color or "1/1" in color) else 1
     click_cost = press_sheets * sides * click_rate
     total_cost = paper_cost + click_cost
 
-# === PRICING MULTIPLIER ===
+# MULTIPLIER
 if product_type == "booklet":
     if qty <= 250: multiplier = 4.00
     elif qty <= 500: multiplier = 3.00
@@ -773,6 +745,8 @@ elif product_type in ["postcard", "flyer", "brochure"]:
     elif qty <= 10000: multiplier = 3.00
     elif qty <= 15000: multiplier = 2.50
     else: multiplier = 2.20
+#elif product_type == "envelope":
+#  (if you need envelope-specific tiers, keep as above or reuse)
 elif product_type == "envelope":
     if qty <= 250: multiplier = 5.00
     elif qty <= 500: multiplier = 4.00
@@ -795,40 +769,38 @@ else:
 
 quote = total_cost * multiplier
 
-# === SHOP MINIMUM ===
+# SHOP MINIMUM
 shop_minimum = 75.00
-shop_minimum_met = True
 if quote < shop_minimum:
     quote = shop_minimum
-    shop_minimum_met = True
-    if debug_mode:
-        print("⚠️ Shop minimum applied: $" + format(shop_minimum, '.2f'))
 
 margin_pct = ((quote - total_cost) / quote) * 100
 
-# Always print these (not debug-gated)
+# ALWAYS PRINT FINAL SECTIONS (Quiet mode keeps it concise)
 print("Quote: $" + format(quote, '.2f'))
 print("\\nProduction:")
 print("* Equipment: " + press)
-if 'stock_name' in locals():
+if 'stock_name' in globals():
     print("* Stock: " + stock_name)
 if product_type in ["postcard", "flyer", "brochure"]:
     print("* Imposition: " + str(up_count) + "-up")
 print("* Press Sheets: " + str(press_sheets) + " (includes " + spoilage_pct + " spoilage)")
+
 print("\\nCost (internal):")
 print("* Paper: $" + format(paper_cost, '.2f') + " ($" + format(paper_cost/qty, '.4f') + "/pc)")
 print("* Clicks: $" + format(click_cost, '.2f') + " ($" + format(click_cost/qty, '.4f') + "/pc)")
 if is_booklet:
     print("* Stitching: $" + format(finishing_cost, '.2f') + " ($" + format(finishing_cost/qty, '.4f') + "/pc)")
-    print("* Overhead/QC: $" + format(overhead, '.2f'))
+    print("* Overhead/QC: $100.00")
 else:
     print("* Stitching: $0.00 ($0.0000/pc)")
     print("* Overhead/QC: $0.00")
 print("* TOTAL COST: $" + format(total_cost, '.2f') + " ($" + format(total_cost/qty, '.4f') + "/pc)")
+
 print("\\nQUOTE: $" + format(quote, '.2f') + " ($" + format(quote/qty, '.4f') + "/pc • " + str(multiplier) + "× • " + str(int(margin_pct)) + "% margin)")
 
-# === MAIL SERVICES OUTPUT ===
-job_text_l = job_text.lower()
+# MAIL SERVICES OUTPUT
+job_text_l = job_text.lower() if isinstance(job_text, str) else ""
 wants_mailing = any(k in job_text_l for k in [" mail", "with mailing", "add mailing", "mail it", "mailing"])
 is_eddm = any(k in job_text_l for k in ["eddm", "every door", "saturation route", "saturation"])
 
@@ -856,7 +828,7 @@ if wants_mailing:
             mailing_section += "• Addressing + Double Tab + Flats Prep: " + format(qty, ',') + " × $0.109 = $" + format(svc, '.2f') + "\\n"
             mailing_section += "• Postage billed at actual USPS cost (not calculated)\\n"
         elif product_type == "letter" or is_letter:
-            num_inserts = globals().get("num_inserts", 1)
+            num_inserts = 1
             base = 0.079 if num_inserts == 1 else 0.079 + 0.01 * (num_inserts - 1)
             svc = qty * base
             mailing_services_total += svc
@@ -873,26 +845,20 @@ if mailing_services_total > 0:
 if "eddm" in job_text_l and ("address" in job_text_l or "addresses" in job_text_l):
     print("\\n⚠️ EDDM campaigns are non-addressed saturation mail. For addressed mail, select Marketing Mail or First-Class instead.")
 
-# === OFFSET ADVISORY FLAG ===
+# OFFSET ADVISORY FLAG
 is_static = True
-offset_flag = False
-
 if is_static:
     if product_type in ["flyer", "brochure"] and finished_width == 8.5 and finished_height == 11:
         if ("4/0" in color or "4/4" in color) and qty >= 30000:
-            offset_flag = True
             print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
     elif product_type == "postcard" and finished_width == 6.25 and finished_height == 9:
         if "4/4" in color and qty >= 50000:
-            offset_flag = True
             print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
     elif product_type == "booklet" and qty >= 5000:
-        offset_flag = True
         print("\\n💡 Recommendation: Consider offset or trade printing—digital price shown.")
 
-# === PROFIT FLOORS ===
+# PROFIT FLOORS
 gm_floor_met = True
-
 if product_type in ["postcard", "flyer", "brochure"]:
     if margin_pct < 30:
         print("\\n⚠️ WARNING: GM below 30% floor for postcards/flyers")
@@ -902,45 +868,28 @@ elif product_type == "booklet":
         print("\\n⚠️ WARNING: GM below 35% floor for booklets")
         gm_floor_met = False
 
-# === QA SUMMARY ===
+# QA SUMMARY (6 checks)
 qa_checks_total = 6
 qa_checks_passed = 0
-
-device_correct = True
+device_ok = True
 if is_envelope:
     if press not in ["P-04 Versant Color", "P-05 Versant B&W"]:
-        device_correct = False
+        device_ok = False
         print("\\n❌ QA FAIL: Envelope routed to non-Versant device")
 else:
     if "Versant" in press:
-        device_correct = False
+        device_ok = False
         print("\\n❌ QA FAIL: Non-envelope routed to Versant")
-
-if device_correct:
-    qa_checks_passed += 1
-
-if spoilage_applied:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Spoilage not applied")
-
-if paper_cost > 0:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Paper cost is zero")
-
-if click_cost > 0:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Click cost is zero")
-
-if gm_floor_met:
-    qa_checks_passed += 1
-
-if quote >= shop_minimum:
-    qa_checks_passed += 1
-else:
-    print("\\n❌ QA FAIL: Quote below shop minimum")
+if device_ok: qa_checks_passed += 1
+if spoilage_applied: qa_checks_passed += 1
+else: print("\\n❌ QA FAIL: Spoilage not applied")
+if paper_cost > 0: qa_checks_passed += 1
+else: print("\\n❌ QA FAIL: Paper cost is zero")
+if click_cost > 0: qa_checks_passed += 1
+else: print("\\n❌ QA FAIL: Click cost is zero")
+if gm_floor_met: qa_checks_passed += 1
+if quote >= shop_minimum: qa_checks_passed += 1
+else: print("\\n❌ QA FAIL: Quote below shop minimum")
 
 print("\\n═══════════════════════════════════════════")
 print("QA SUMMARY")
@@ -965,21 +914,19 @@ if qa_checks_passed < qa_checks_total:
           }
         ],
 
-        tools: [{
-          type: 'code_execution_20250825',
-          name: 'code_execution'
-        }]
+        messages: messageBlocks
       });
 
+      // Stream handlers
       let fullResponse = '';
-      
+
       stream.on('text', (text: string) => {
         fullResponse += text;
-        setMessages(prev => prev.map(msg => 
-          (msg.id === assistantMessageId)
-            ? { ...msg, content: fullResponse }
-            : msg
-        ));
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === assistantMessageId ? { ...msg, content: fullResponse } : msg
+          )
+        );
       });
 
       stream.on('error', (error: unknown) => {
@@ -988,27 +935,24 @@ if qa_checks_passed < qa_checks_total:
       });
 
       const finalMessage: any = await stream.finalMessage();
-      
-      // Ensure we have the complete response
+
       if (finalMessage && finalMessage.content && finalMessage.content.length > 0) {
         const completeText = finalMessage.content
           .filter((block: any) => block.type === 'text')
           .map((block: any) => block.text)
           .join('');
-        
         if (completeText && completeText !== fullResponse) {
-          setMessages(prev => prev.map(msg => 
-            (msg.id === assistantMessageId)
-              ? { ...msg, content: completeText }
-              : msg
-          ));
+          setMessages(prev =>
+            prev.map(msg =>
+              msg.id === assistantMessageId ? { ...msg, content: completeText } : msg
+            )
+          );
         }
       }
-
     } catch (err: any) {
       console.error('Error:', err);
       console.error('Error details:', JSON.stringify(err, null, 2));
-      const errorMessage = {
+      const errorMessage: ChatMsg = {
         role: 'assistant',
         content: `⚠️ Error: ${err.message || err.error?.message || 'Unable to process your request. Please try again.'}`,
         timestamp: new Date().toISOString()
@@ -1064,7 +1008,11 @@ if qa_checks_passed < qa_checks_total:
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto" ref={messagesContainerRef} onScroll={handleScroll}>
+      <div
+        className="flex-1 overflow-y-auto"
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+      >
         <div className="max-w-4xl mx-auto px-6 py-8">
           {messages.length === 0 && (
             <div className="flex items-center justify-center min-h-[60vh]">
@@ -1075,11 +1023,9 @@ if qa_checks_passed < qa_checks_total:
                     <Sparkles className="w-12 h-12 text-white" strokeWidth={2} />
                   </div>
                 </div>
-                
+
                 <div className="space-y-4">
-                  <h2 className="text-4xl font-bold text-white">
-                    MPA Quoting Agent
-                  </h2>
+                  <h2 className="text-4xl font-bold text-white">MPA Quoting Agent</h2>
                   <p className="text-lg text-neutral-400">
                     Get instant pricing for postcards, flyers, booklets & envelopes
                   </p>
@@ -1087,7 +1033,9 @@ if qa_checks_passed < qa_checks_total:
 
                 <div className="grid grid-cols-1 gap-3 mt-8">
                   <button
-                    onClick={() => setInput('quote 500 6x9 postcards 4/4 100# gloss cover')}
+                    onClick={() =>
+                      setInput('quote 500 6x9 postcards 4/4 100# gloss cover')
+                    }
                     className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
                   >
                     <div className="flex items-center gap-3">
@@ -1115,7 +1063,9 @@ if qa_checks_passed < qa_checks_total:
                     </div>
                   </button>
                   <button
-                    onClick={() => setInput('quote 5k 16-page booklets 4/4 throughout')}
+                    onClick={() =>
+                      setInput('quote 5k 16-page booklets 4/4 throughout')
+                    }
                     className="group text-left px-6 py-4 rounded-2xl bg-neutral-900/50 border border-neutral-800/60 hover:border-blue-500/50 hover:bg-neutral-900 transition-all"
                   >
                     <div className="flex items-center gap-3">
@@ -1124,7 +1074,9 @@ if qa_checks_passed < qa_checks_total:
                       </div>
                       <div>
                         <div className="text-white font-medium">5,000 Booklets</div>
-                        <div className="text-sm text-neutral-500">16 pages, full color, saddle-stitched</div>
+                        <div className="text-sm text-neutral-500">
+                          16 pages, full color, saddle-stitched
+                        </div>
                       </div>
                     </div>
                   </button>
@@ -1132,38 +1084,46 @@ if qa_checks_passed < qa_checks_total:
               </div>
             </div>
           )}
-          
-          {messages.map((msg: any, idx: number) => (
+
+          {messages.map((msg, idx) => (
             <div
               key={msg.id || idx}
               className={`mb-6 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`flex gap-4 max-w-[85%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div
+                className={`flex gap-4 max-w-[85%] ${
+                  msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'
+                }`}
+              >
                 {/* Avatar */}
-                <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
-                  msg.role === 'user' 
-                    ? 'bg-gradient-to-br from-blue-500 to-blue-600' 
-                    : 'bg-neutral-800 border border-neutral-700'
-                }`}>
+                <div
+                  className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center ${
+                    msg.role === 'user'
+                      ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                      : 'bg-neutral-800 border border-neutral-700'
+                  }`}
+                >
                   {msg.role === 'user' ? (
                     <User className="w-5 h-5 text-white" strokeWidth={2.5} />
                   ) : (
                     <Sparkles className="w-5 h-5 text-blue-400" strokeWidth={2.5} />
                   )}
                 </div>
-                
+
                 {/* Message Content */}
                 <div className="flex-1 space-y-2">
-                  <div className={`rounded-3xl px-6 py-4 ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600 text-white' 
-                      : 'bg-neutral-900 border border-neutral-800 text-neutral-100'
-                  }`}>
+                  <div
+                    className={`rounded-3xl px-6 py-4 ${
+                      msg.role === 'user'
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-neutral-900 border border-neutral-800 text-neutral-100'
+                    }`}
+                  >
                     <div className="text-base leading-relaxed whitespace-pre-wrap">
                       {msg.content}
                     </div>
                   </div>
-                  
+
                   {/* Copy button for AI messages */}
                   {msg.role === 'assistant' && (
                     <button
@@ -1194,10 +1154,7 @@ if qa_checks_passed < qa_checks_total:
               className="flex-1 px-4 py-3 bg-transparent text-white placeholder-neutral-500 focus:outline-none resize-none text-base"
               rows={1}
               disabled={isLoading}
-              style={{
-                minHeight: '44px',
-                maxHeight: '200px'
-              }}
+              style={{ minHeight: '44px', maxHeight: '200px' }}
             />
             <button
               onClick={handleSubmit}
