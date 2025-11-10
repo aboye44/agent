@@ -15,15 +15,23 @@ RULES:
 4. For booklets, also extract total pages
 5. Detect if user wants mailing (keywords: "mail", "EDDM", "mailing")
 6. If ANY required spec is missing, ask for it conversationally
-7. Once you have all required specs, return ONLY a JSON object (no other text)
+7. Once you have all required specs, IMMEDIATELY return JSON - DO NOT ask about optional features
 
-REQUIRED SPECS:
+CRITICAL: DO NOT ASK ABOUT:
+- Turnaround time
+- Coating/finish
+- Additional services
+- Design help
+- Multiple options
+If you have quantity, product type, size, and color → RETURN JSON IMMEDIATELY
+
+REQUIRED SPECS (must have ALL of these):
 - Quantity (e.g., "500", "10k", "5000")
 - Product type: postcard, flyer, brochure, booklet, letter, or envelope
 - Size (e.g., "6x9", "4x6", "8.5x11")
 - Color (e.g., "4/4", "4/0", "1/1", "1/0")
 
-OPTIONAL SPECS:
+OPTIONAL SPECS (use defaults if not specified):
 - Stock (e.g., "14pt", "100# gloss", "80# gloss text", "kallima")
 - Total pages (required for booklets)
 - Mailing intent
@@ -76,7 +84,12 @@ Assistant: \`\`\`json
 {"quantity": 4432, "productType": "booklet", "finishedWidth": 8.5, "finishedHeight": 11, "color": "4/4", "totalPages": 16, "stockName": "80# gloss text", "wantsMailing": false, "isEDDM": false}
 \`\`\`
 
-IMPORTANT: Return JSON immediately when you have all required specs. No explanations, just JSON.`;
+User: "3,390 4×6 postcards, 100# gloss cover, full color both sides"
+Assistant: \`\`\`json
+{"quantity": 3390, "productType": "postcard", "finishedWidth": 4, "finishedHeight": 6, "color": "4/4", "stockName": "100# gloss cover", "wantsMailing": false, "isEDDM": false}
+\`\`\`
+
+IMPORTANT: Return JSON immediately when you have all required specs. No explanations, no follow-up questions, just JSON.`;
 
 /**
  * Parse Claude's response into QuoteSpecs
