@@ -171,9 +171,13 @@ export const stockAliases: Record<string, string> = {
   '100# gloss cover': 'endurance100Cover',
   '100# gloss text': 'endurance100Gloss',
   '80# gloss': 'endurance80Gloss',
+  '80# gloss text': 'endurance80Gloss', // Added: user says "80# gloss text"
   '100# silk': 'endurance100Silk',
+  '100# silk text': 'endurance100Silk', // Added: consistency
   '80# silk': 'endurance80Silk',
+  '80# silk text': 'endurance80Silk', // Added: consistency
   '130# silk': 'endurance130Silk',
+  '130# silk cover': 'endurance130Silk', // Added: consistency
   'endurance': 'endurance100Gloss',
   'williamsburg': 'williamsburg60',
   '60# white': 'williamsburg60',
