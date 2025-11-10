@@ -130,7 +130,11 @@ export default function App() {
       }
 
       // Check if this is a quote request
-      const isQuoteRequest = /\b(quote|price|cost|how much)\b/i.test(currentInput);
+      // Match explicit keywords OR product mentions with quantities
+      const hasQuoteKeyword = /\b(quote|price|cost|how much)\b/i.test(currentInput);
+      const hasProductMention = /\b(postcard|flyer|brochure|booklet|letter|envelope)s?\b/i.test(currentInput);
+      const hasQuantity = /\b(\d+[,\d]*|\d+k)\b/i.test(currentInput);
+      const isQuoteRequest = hasQuoteKeyword || (hasProductMention && hasQuantity);
 
       // Context depth
       const needsDeepContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
