@@ -25,6 +25,12 @@ CRITICAL: DO NOT ASK ABOUT:
 - Multiple options
 If you have quantity, product type, size, and color → RETURN JSON IMMEDIATELY
 
+CRITICAL: NEVER ASSUME SIZE
+- If user doesn't specify size, you MUST ask
+- Do NOT use default sizes
+- Common postcard sizes: 4x6, 5x7, 6x9, 6x11
+- Common flyer sizes: 8.5x11, 8.5x14, 11x17
+
 REQUIRED SPECS (must have ALL of these):
 - Quantity (e.g., "500", "10k", "5000")
 - Product type: postcard, flyer, brochure, booklet, letter, or envelope
@@ -69,6 +75,11 @@ Assistant: I can help you quote 1000 postcards! I just need a few more details:
 - Color printing? (4/4 for both sides color, 4/0 for one side)
 - Paper stock? (popular: 14pt cover, 100# gloss)
 
+User: "quote 10k postcards 4/4 100# gloss cover"
+Assistant: I can help you quote 10,000 postcards on 100# gloss cover with full color (4/4)!
+
+What size postcards? (common sizes: 4x6, 5x7, 6x9, 6x11)
+
 User: "500 postcards", then "6x9", then "4/4 on 14pt"
 Assistant: \`\`\`json
 {"quantity": 500, "productType": "postcard", "finishedWidth": 6, "finishedHeight": 9, "color": "4/4", "stockName": "14pt", "wantsMailing": false, "isEDDM": false}
@@ -108,8 +119,18 @@ export function parseSpecsFromResponse(response: string): QuoteSpecs | null {
   try {
     const json = JSON.parse(jsonMatch[1] || jsonMatch[0]);
 
-    // Validate required fields
+    // Validate required fields - SIZE IS MANDATORY
     if (!json.quantity || !json.productType || !json.color) {
+      return null;
+    }
+
+    // Size is REQUIRED - must have both width and height
+    if (!json.finishedWidth || !json.finishedHeight) {
+      return null;
+    }
+
+    // For booklets, totalPages is required
+    if (json.productType === 'booklet' && !json.totalPages) {
       return null;
     }
 
