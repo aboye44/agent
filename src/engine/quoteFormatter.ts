@@ -23,11 +23,9 @@ export function formatQuote(result: QuoteResult): string {
   output += `• Paper: $${costs.paperCost.toFixed(2)} ($${(costs.paperCost / specs.quantity).toFixed(4)}/pc)\n`;
   output += `• Clicks: $${costs.clickCost.toFixed(2)} ($${(costs.clickCost / specs.quantity).toFixed(4)}/pc)\n`;
   if (costs.finishingCost > 0) {
-    output += `• Stitching: $${costs.finishingCost.toFixed(2)} ($${(costs.finishingCost / specs.quantity).toFixed(4)}/pc)\n`;
-    output += `• Overhead/QC: $100.00\n`;
+    output += `• Stitching: $${costs.finishingCost.toFixed(2)} ($${(costs.finishingCost / specs.quantity).toFixed(4)}/pc) [includes $100 overhead]\n`;
   } else {
     output += `• Stitching: $0.00 ($0.0000/pc)\n`;
-    output += `• Overhead/QC: $0.00\n`;
   }
   output += `• TOTAL COST: $${costs.totalCost.toFixed(2)} ($${(costs.totalCost / specs.quantity).toFixed(4)}/pc)\n\n`;
 
