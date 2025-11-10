@@ -31,7 +31,7 @@ export default function App() {
   // PDF preview
   const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
   const [pdfFilename, setPdfFilename] = useState<string>('');
-  const [showPdfPreview, setShowPdfPreview] = useState(true);
+  const [showPdfPreview, setShowPdfPreview] = useState(false); // Hidden by default
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -130,11 +130,18 @@ export default function App() {
       }
 
       // Check if this is a quote request
-      // Match explicit keywords OR product mentions with quantities
+      // Match explicit keywords OR product mentions with quantities OR continuing a quote conversation
       const hasQuoteKeyword = /\b(quote|price|cost|how much)\b/i.test(currentInput);
       const hasProductMention = /\b(postcard|flyer|brochure|booklet|letter|envelope)s?\b/i.test(currentInput);
       const hasQuantity = /\b(\d+[,\d]*|\d+k)\b/i.test(currentInput);
-      const isQuoteRequest = hasQuoteKeyword || (hasProductMention && hasQuantity);
+
+      // Check if last assistant message was asking for info (continuing quote flow)
+      const lastAssistantMsg = messages.filter(m => m.role === 'assistant').pop();
+      const isFollowUp = lastAssistantMsg &&
+        !lastAssistantMsg.content.includes('Quote:') && // Not a completed quote
+        (lastAssistantMsg.content.includes('?') || lastAssistantMsg.content.toLowerCase().includes('need')); // Was asking a question
+
+      const isQuoteRequest = hasQuoteKeyword || (hasProductMention && hasQuantity) || isFollowUp;
 
       // Context depth
       const needsDeepContext = /\b(add|change|update|modify|also|too|and)\b/i.test(currentInput);
