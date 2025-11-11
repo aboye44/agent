@@ -647,9 +647,9 @@ if is_flyer and "stock_cost_per_sheet" not in globals():
     stock_name = "Endurance 100# Gloss Text (13×19)"
 
 # IMPOSITION
-# CRITICAL: Always use 13×19 sheet size for postcards/flyers/brochures
-# Cover stocks listed as (19×13) are THE SAME as 13×19 sheets
-# Do NOT use 12×18 or any other size unless explicitly required
+# CRITICAL: Always use 13x19 sheet size for postcards/flyers/brochures
+# Cover stocks listed as (19x13) are THE SAME as 13x19 sheets
+# Do NOT use 12x18 or any other size unless explicitly required
 if product_type in ["postcard", "flyer", "brochure"]:
     live_width = finished_width + 0.25
     live_height = finished_height + 0.25
