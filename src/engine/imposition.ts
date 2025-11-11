@@ -19,7 +19,19 @@ export function calculateImposition(
   const orient1 = Math.floor(sheetWidth / liveWidth) * Math.floor(sheetHeight / liveHeight);
   const orient2 = Math.floor(sheetWidth / liveHeight) * Math.floor(sheetHeight / liveWidth);
 
-  return Math.max(orient1, orient2);
+  const result = Math.max(orient1, orient2);
+
+  // Debug logging
+  console.log('Imposition calculation:', {
+    finished: `${finishedWidth}×${finishedHeight}`,
+    sheet: `${sheetWidth}×${sheetHeight}`,
+    live: `${liveWidth}×${liveHeight}`,
+    orient1,
+    orient2,
+    result
+  });
+
+  return result;
 }
 
 /**
