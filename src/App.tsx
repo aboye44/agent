@@ -246,7 +246,7 @@ B) FLYER DEFAULT STOCK (auto-apply when stock unspecified)
 
 When product type is "flyer", "brochure", or "sheet" AND user does NOT specify a stock:
 → Default to: Endurance 100# Gloss Text (13×19) @ $0.0505/press sheet
-→ Calculate imposition as 2-up with 0.25″ bleed allowance on 13×19 working area
+→ Calculate imposition automatically using 13×19 sheet size with 0.25″ bleed allowance (typically 2-up for 8.5×11)
 
 C) CANONICAL SPOILAGE PATH - APPLY EXACTLY ONCE
 
@@ -455,6 +455,7 @@ SKU 33110: Classic Crest 70# Natural White @ $0.53186 (23×35, premium)
 SKU 10755110: Starbrite 70# Smooth @ $0.06542 (23×35, 2-up)
 
 COVER STOCKS (postcards/booklet covers):
+NOTE: Cover stocks listed as (19×13) are 13×19 sheets - ALWAYS use 13×19 for imposition calculations
 SKU 10735784: Endurance 100# Gloss @ $0.0965 (19×13) ⭐ DEFAULT booklet cover
 SKU 1.10594E+11: Kallima 14pt C2S @ $0.123 (19×13) ⭐ MOST POPULAR postcard
 SKU 20033067: Endurance 130# Silk @ $0.1331 (28×40, 4-up, premium thick)
@@ -646,6 +647,9 @@ if is_flyer and "stock_cost_per_sheet" not in globals():
     stock_name = "Endurance 100# Gloss Text (13×19)"
 
 # IMPOSITION
+# CRITICAL: Always use 13×19 sheet size for postcards/flyers/brochures
+# Cover stocks listed as (19×13) are THE SAME as 13×19 sheets
+# Do NOT use 12×18 or any other size unless explicitly required
 if product_type in ["postcard", "flyer", "brochure"]:
     live_width = finished_width + 0.25
     live_height = finished_height + 0.25
