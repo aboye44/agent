@@ -9,8 +9,18 @@ import { calculateImposition, calculatePressSheets } from './imposition';
  * Pure TypeScript - no LLM needed
  */
 export function calculateQuote(specs: QuoteSpecs): QuoteResult {
+  // Debug: Log that calculation started
+  console.log('🔵 calculateQuote called with specs:', {
+    quantity: specs.quantity,
+    productType: specs.productType,
+    size: `${specs.finishedWidth}×${specs.finishedHeight}`,
+    color: specs.color,
+    stockName: specs.stockName
+  });
+
   // 1. Determine paper stock
   const stock = resolveStock(specs);
+  console.log('📄 Stock resolved:', stock.name, 'Sheet size:', stock.sheetSize);
 
   // 2. Route to correct equipment
   const equipment = getEquipment(specs.productType, specs.color);
@@ -18,12 +28,16 @@ export function calculateQuote(specs: QuoteSpecs): QuoteResult {
   // 3. Calculate imposition (for flats)
   let upCount = 1;
   if (specs.productType === 'postcard' || specs.productType === 'flyer' || specs.productType === 'brochure') {
+    console.log('🎯 Entering imposition calculation block for', specs.productType);
     upCount = calculateImposition(
       specs.finishedWidth,
       specs.finishedHeight,
       stock.sheetSize[0],
       stock.sheetSize[1]
     );
+    console.log('✅ Imposition result:', upCount, '-up');
+  } else {
+    console.log('⏭️ Skipping imposition (product type:', specs.productType, ')');
   }
 
   // 4. Calculate press sheets with spoilage

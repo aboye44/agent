@@ -119,20 +119,32 @@ export function parseSpecsFromResponse(response: string): QuoteSpecs | null {
   try {
     const json = JSON.parse(jsonMatch[1] || jsonMatch[0]);
 
+    console.log('📋 Parsed JSON from Claude:', json);
+
     // Validate required fields - SIZE IS MANDATORY
     if (!json.quantity || !json.productType || !json.color) {
+      console.log('❌ Missing required fields (quantity, productType, or color)');
       return null;
     }
 
     // Size is REQUIRED - must have both width and height
     if (!json.finishedWidth || !json.finishedHeight) {
+      console.log('❌ Missing size (finishedWidth or finishedHeight)');
       return null;
     }
 
     // For booklets, totalPages is required
     if (json.productType === 'booklet' && !json.totalPages) {
+      console.log('❌ Missing totalPages for booklet');
       return null;
     }
+
+    console.log('✅ Specs validated successfully:', {
+      quantity: json.quantity,
+      productType: json.productType,
+      size: `${json.finishedWidth}×${json.finishedHeight}`,
+      color: json.color
+    });
 
     return json as QuoteSpecs;
   } catch (e) {
